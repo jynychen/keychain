@@ -24,7 +24,7 @@ ASSET_KEYCHAIN=${KEYCHAIN_ASSET_KEYCHAIN:-keychain}
 ASSET_MAN=${KEYCHAIN_ASSET_MAN:-keychain.1}
 ASSET_TARBALL=${KEYCHAIN_ASSET_TARBALL:-keychain-$VER.tar.gz}
 
-# (Note: We intentionally do NOT modify existing release body on refresh.)
+# (Note: By default we do not modify existing release notes. Set KEYCHAIN_UPDATE_NOTES=1 to rebuild.)
 
 for f in "$ASSET_TARBALL" "$ASSET_KEYCHAIN" "$ASSET_MAN"; do
   [ -f "$f" ] || fail "Missing asset file $f"
@@ -45,4 +45,11 @@ for f in "$ASSET_TARBALL" "$ASSET_KEYCHAIN" "$ASSET_MAN"; do
   echo " uploaded $pname (from $f)"
 done
 
-echo "Assets refreshed for release $VER."
+echo "Regenerating release notes (including provenance) ..."
+tmp_notes=$(mktemp)
+./scripts/release-notes.sh "$VER" "$tmp_notes"
+patch_json=$(mktemp)
+printf '{"body": %s}\n' "$(jq -Rs . < "$tmp_notes")" > "$patch_json"
+api PATCH /releases/$rel_id "$patch_json" >/dev/null || echo "Warning: failed to PATCH release body" >&2
+rm -f "$tmp_notes" "$patch_json"
+echo "Assets and notes refreshed for release $VER."

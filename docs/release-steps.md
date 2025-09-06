@@ -70,7 +70,7 @@ You will see:
    (Use corresponding `... make release-refresh` for refresh mode.)
 4. Display of extracted ChangeLog section (release notes preview).
 5. Y/N confirmation prompt.
-6. Release creation (or refresh) + asset upload via GitHub API.
+6. Release creation (or refresh) + asset upload + release notes (re)generation with provenance table via GitHub API.
 
 ## 7. Automated Path (Tag-Driven Workflow)
 Pushing a tag matching `X.Y.Z` triggers `.github/workflows/release.yml` which:
@@ -84,14 +84,14 @@ Publication only occurs when you run `make release` (or refresh) locally; CI nev
 ## 8. Fast-Fail vs Refresh
 Targets:
 - `make release` – Orchestrated create (fails if release exists) with digest validation & confirmation.
-- `make release-refresh` – Same flow but updates existing release assets (does not alter notes).
+- `make release-refresh` – Same flow but updates existing release assets AND regenerates release notes (including provenance table).
 
 Both require `GITHUB_TOKEN` (repo scope) exported in the environment.
 
 ## 9. Refresh Scenario Workflow
 If you forgot something (docs only, same version):
 ```
-# Edit ChangeLog.md (if notes missing) – BUT remember existing release notes won't auto-update.
+# Edit ChangeLog.md (if you need to adjust text; refresh will regenerate release notes from current ChangeLog plus provenance.)
 # Rebuild if needed (optional): make keychain-$(cat VERSION).tar.gz
 make release-refresh
 ```

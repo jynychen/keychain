@@ -8,33 +8,12 @@ GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-danielrobbins/keychain}
 [ "$(cat VERSION)" = "$VER" ] || fail "VERSION file mismatch ($(cat VERSION) != $VER)"
 
 notes_file=$(mktemp)
-awk -v ver="$VER" '/^## keychain '"$VER"' /{f=1;print;next} /^## keychain / && f && $0 !~ ver {exit} f' ChangeLog.md > "$notes_file"
-[ -s "$notes_file" ] || fail "Could not extract changelog section for $VER"
+./scripts/release-notes.sh "$VER" "$notes_file"
 
-# Pre-compute artifact paths (may be CI paths when orchestrated)
+# Artifact path vars (provided by orchestrator if using CI artifacts)
 ASSET_KEYCHAIN=${KEYCHAIN_ASSET_KEYCHAIN:-keychain}
 ASSET_MAN=${KEYCHAIN_ASSET_MAN:-keychain.1}
 ASSET_TARBALL=${KEYCHAIN_ASSET_TARBALL:-keychain-$VER.tar.gz}
-
-# Append provenance table with sha256 and tag commit at bottom of notes
-if [ -f "$ASSET_KEYCHAIN" ] && [ -f "$ASSET_MAN" ]; then
-  k_sha256=$(sha256sum "$ASSET_KEYCHAIN" | awk '{print $1}')
-  man_sha256=$(sha256sum "$ASSET_MAN" | awk '{print $1}')
-  commit_sha1=$(git rev-list -n1 "$VER" 2>/dev/null || true)
-  {
-    echo
-    echo '---'
-    echo
-    echo '### Build Provenance'
-    echo
-    echo '| Artifact | SHA256 |'
-    echo '|----------|--------|'
-    echo "| keychain | $k_sha256 |"
-    echo "| keychain.1 | $man_sha256 |"
-    echo
-    echo "Tag commit SHA1: \`$commit_sha1\`"
-  } >> "$notes_file"
-fi
 
 echo "Creating release $VER"
 json=$(mktemp)
