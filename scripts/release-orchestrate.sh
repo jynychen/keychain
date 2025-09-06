@@ -19,6 +19,21 @@ REPO=${GITHUB_REPOSITORY:-danielrobbins/keychain}
 [ "$(cat VERSION)" = "$VER" ] || { echo "VERSION file mismatch ($(cat VERSION)) != $VER" >&2; exit 1; }
 [ -n "${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN not set" >&2; exit 1; }
 
+# Soft fail early if attempting to create a release that already exists.
+if [ "$MODE" = create ]; then
+  existing_json=$(curl -fsS -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${REPO}/releases/tags/$VER" || true)
+  if printf '%s' "$existing_json" | grep -q '"id"'; then
+    echo "Release $VER already exists on GitHub." >&2
+    echo >&2
+    echo "Next steps:" >&2
+    echo "  - To update its assets and regenerate notes: make release-refresh" >&2
+    echo "  - To publish a new release: increment VERSION, update ChangeLog.md, retag, then run make release" >&2
+    echo >&2
+    exit 1
+  fi
+fi
+
 # 1. Ensure local assets exist
 for f in keychain-$VER.tar.gz keychain keychain.1; do
   [ -f "$f" ] || { echo "Missing local asset: $f" >&2; exit 1; }
