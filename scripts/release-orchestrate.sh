@@ -178,13 +178,12 @@ else
 fi
 export KEYCHAIN_ASSET_KEYCHAIN KEYCHAIN_ASSET_MAN KEYCHAIN_ASSET_TARBALL
 
-# 3. Extract release notes section for confirmation
+# 3. Generate full release notes (ChangeLog excerpt + provenance) for preview
 NOTES_FILE=$(mktemp)
-awk -v ver="$VER" '/^## keychain '"$VER"' /{f=1;print;next} /^## keychain / && f && $0 !~ ver {exit} f' ChangeLog.md > "$NOTES_FILE"
-[ -s "$NOTES_FILE" ] || { echo "Could not extract changelog section for $VER" >&2; exit 1; }
+./scripts/release-notes.sh "$VER" "$NOTES_FILE" || { echo "Failed to generate release notes preview" >&2; exit 1; }
 
 echo
-echo "================ Release Notes Preview (from ChangeLog.md) ================"
+echo "================ Release Notes Preview (generated) ======================"
 sed 's/^/| /' "$NOTES_FILE"
 echo "========================================================================="
 

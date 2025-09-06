@@ -68,7 +68,7 @@ You will see:
      - If any real content mismatch exists -> Abort.
      - Override (discouraged) to force publish local artifacts despite mismatch: `KEYCHAIN_FORCE_LOCAL=1 make release`
    (Use corresponding `... make release-refresh` for refresh mode.)
-4. Display of extracted ChangeLog section (release notes preview).
+4. Display of generated release notes (ChangeLog excerpt + provenance table preview).
 5. Y/N confirmation prompt.
 6. Release creation (or refresh) + asset upload + release notes (re)generation with provenance table via GitHub API.
 
