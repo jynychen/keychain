@@ -59,7 +59,10 @@ make release   # for first publication
 You will see:
 1. Local build presence check (or build via prerequisites).
 2. CI artifact fetch (MANDATORY). Failure to retrieve artifacts aborts; you must wait for the workflow to finish.
-3. sha256 comparison (local vs CI). If any differ, release ABORTS by default (no prompt) to enforce deterministic provenance.
+3. Normalized comparison phase:
+   * `keychain` – raw sha256 digest compare.
+   * `keychain.1` – compare raw hash; if different, re-compare with the Pod::Man auto-generated first line stripped. If normalized content matches, we ADOPT the CI man page and treat as match.
+   * `keychain-<version>.tar.gz` – unpack both tarballs; compare sorted file list and per-file sha256. If all internal files match, we treat the tarballs as equivalent even if gzip/tar metadata differ (timestamp, owner, compression). Any real content divergence aborts.
    - To force using local artifacts: `KEYCHAIN_FORCE_LOCAL=1 make release`
    - To adopt CI artifacts: `KEYCHAIN_ADOPT_CI=1 make release`
    (Use corresponding `... make release-refresh` for refresh mode.)
