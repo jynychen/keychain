@@ -9,13 +9,22 @@ api() {
   method=$1; shift
   path=$1; shift
   url="https://api.github.com/repos/${GITHUB_REPOSITORY}${path}"
-  hdrs="-H Authorization: Bearer ${GITHUB_TOKEN} -H Accept: application/vnd.github+json"
   if [ $# -gt 0 ]; then
-    data="@${1}"; curl -fsSL -X "$method" $hdrs --data "$data" "$url"
+    datafile=$1; shift
+    curl -fsSL -X "$method" \
+      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      --data "@${datafile}" \
+      "$url"
   else
-    curl -fsSL -X "$method" $hdrs "$url"
+    curl -fsSL -X "$method" \
+      -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      "$url"
   fi
 }
+
+redact() { sed -E 's/[A-Za-z0-9_]{20,}/[REDACTED]/g'; }
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing required tool: $1" >&2; exit 1; }; }
 
