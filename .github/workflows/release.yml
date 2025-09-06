@@ -15,7 +15,7 @@ jobs:
         run: |
           apt-get update -y
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            ca-certificates make perl jq git awk sed gzip
+            ca-certificates make perl jq git gawk sed gzip tar
           rm -rf /var/lib/apt/lists/*
       - name: Checkout
         uses: actions/checkout@v4
