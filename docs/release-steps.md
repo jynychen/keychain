@@ -58,7 +58,7 @@ make release   # for first publication
 ```
 You will see:
 1. Local build presence check (or build via prerequisites).
-2. CI artifact fetch attempt (Debian workflow artifacts).
+2. CI artifact fetch (MANDATORY). Failure to retrieve artifacts aborts; you must wait for the workflow to finish.
 3. sha256 comparison (local vs CI). If any differ, release ABORTS by default (no prompt) to enforce deterministic provenance.
    - To force using local artifacts: `KEYCHAIN_FORCE_LOCAL=1 make release`
    - To adopt CI artifacts: `KEYCHAIN_ADOPT_CI=1 make release`

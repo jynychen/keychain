@@ -20,38 +20,37 @@ for f in keychain-$VER.tar.gz keychain keychain.1; do
   [ -f "$f" ] || { echo "Missing local asset: $f" >&2; exit 1; }
   done
 
-# 2. Fetch CI artifacts (if available)
+# 2. Fetch CI artifacts (MANDATORY)
 CI_DIR=".ci-artifacts-$VER"
 rm -rf "$CI_DIR"
-if ./scripts/fetch-ci-artifacts.sh "$VER" "$CI_DIR" 2>/dev/null; then
-  echo "CI artifacts retrieved." >&2
-else
-  echo "Warning: Could not fetch CI artifacts for $VER (maybe workflow not finished yet)." >&2
-  CI_DIR=""
+echo "Fetching CI artifacts for $VER (mandatory step)..." >&2
+if ! ./scripts/fetch-ci-artifacts.sh "$VER" "$CI_DIR"; then
+  echo "ERROR: Unable to retrieve CI artifacts for $VER. Release aborted." >&2
+  echo "Hint: Ensure the GitHub Actions 'release' workflow for tag $VER has completed successfully." >&2
+  echo "       Re-run 'make release' once artifacts are available." >&2
+  exit 1
 fi
+echo "CI artifacts retrieved." >&2
 
 calc_sha256() { sha256sum "$1" | awk '{print $1}'; }
 
 diff_flag=0
-if [ -n "$CI_DIR" ]; then
-  echo "Digest comparison (sha256):"
-  for artifact in keychain-$VER.tar.gz keychain keychain.1; do
-    if [ -f "$CI_DIR/$artifact" ]; then
-      L=$(calc_sha256 "$artifact")
-      R=$(calc_sha256 "$CI_DIR/$artifact")
-      if [ "$L" = "$R" ]; then
-        printf '  %-20s %s (match)\n' "$artifact" "$L"
-      else
-        printf '  %-20s LOCAL %s != CI %s  *DIFF*\n' "$artifact" "$L" "$R"
-        diff_flag=1
-      fi
+echo "Digest comparison (sha256):"
+for artifact in keychain-$VER.tar.gz keychain keychain.1; do
+  if [ -f "$CI_DIR/$artifact" ]; then
+    L=$(calc_sha256 "$artifact")
+    R=$(calc_sha256 "$CI_DIR/$artifact")
+    if [ "$L" = "$R" ]; then
+      printf '  %-20s %s (match)\n' "$artifact" "$L"
     else
-      printf '  %-20s CI copy missing; skipping comparison\n' "$artifact"
+      printf '  %-20s LOCAL %s != CI %s  *DIFF*\n' "$artifact" "$L" "$R"
+      diff_flag=1
     fi
-  done
-else
-  echo "Skipping digest comparison (no CI artifacts)."
-fi
+  else
+    printf '  %-20s CI copy missing; comparison failed (abort)\n' "$artifact"
+    diff_flag=1
+  fi
+done
 
 if [ $diff_flag -ne 0 ]; then
   echo
