@@ -10,22 +10,23 @@ Documentation/branding release (no functional code changes):
 
 Additional release engineering improvements:
 
-* Add release automation helpers: Makefile `release` (fast-fail) and
+* Add release automation helpers: Makefile `release` (create) and
   `release-refresh` (asset replace), plus scripts under `scripts/` and
-  GitHub Actions workflow to build artifacts on tag push.
+  GitHub Actions workflow to build artifacts on tag push (staging only).
 * Add `docs/release-steps.md` to formalize release process (numeric tags only,
   assets: tarball, wrapper script, man page).
-* Introduced orchestrated release flow (`make release` / `make release-refresh`) with:
-  - CI (Debian container) artifact fetch and sha256 digest comparison against local build.
-  - Deterministic provenance gate: mismatches abort by default (no prompt).
-  - Explicit override environment variables: `KEYCHAIN_FORCE_LOCAL=1` (trust local),
-    `KEYCHAIN_ADOPT_CI=1` (adopt CI artifacts) when differences are intentional.
+* Orchestrated release flow (`make release` / `make release-refresh`) now enforces:
+  - Mandatory CI (Debian container) artifact fetch for the tag.
+  - Normalized comparisons:
+    * `keychain` – raw sha256.
+    * `keychain.1` – raw sha256; on mismatch, re-compare with Pod::Man first line stripped.
+    * Tarball – internal file list + per-file sha256 (man page internally normalized) ignoring tar/gzip metadata.
+  - If (and only if) all artifacts match (raw or normalized) CI artifacts are used DIRECTLY for publication; local artifacts are never overwritten (kept for audit).
+  - Any real content mismatch aborts unless `KEYCHAIN_FORCE_LOCAL=1` is explicitly set (single override; `KEYCHAIN_ADOPT_CI` removed).
   - Copy/paste diff command hints emitted on mismatch for rapid investigation.
-  - Release notes extraction + interactive confirmation prior to publish.
-* Added script layer: `release-orchestrate.sh`, `fetch-ci-artifacts.sh` wrapping low-level
-  create/refresh scripts for a reproducible, inspectable workflow.
-* Workflow updated to build artifacts only (staging) — publication remains an explicit
-  maintainer action (no auto-release on tag push) to reduce accidental releases.
+  - Asset path indirection via exported variables prevents local file mutation, improving auditability.
+* Release notes body automatically extended with a Build Provenance table (sha256 for `keychain` and `keychain.1`) plus the tag commit SHA1.
+* Workflow continues to only stage artifacts; publication requires explicit maintainer action (no auto-release on tag push).
 
 ## keychain 2.9.5 (16 May 2025)
 

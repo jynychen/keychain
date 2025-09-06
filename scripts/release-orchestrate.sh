@@ -1,10 +1,14 @@
 #!/bin/sh
 # Orchestrated release creation/refresh with:
-# 1. Local build (already performed via Makefile prereqs)
-# 2. CI artifact fetch
-# 3. Digest comparison (local vs CI artifacts)
-# 4. Display extracted release notes for confirmation
-# 5. Create or refresh release using base scripts
+# 1. Local build presence check (already performed via Makefile prereqs)
+# 2. CI artifact fetch (mandatory)
+# 3. Digest comparison (local vs CI artifacts) with normalization rules
+# 4. Selection of artifact SOURCE PATHS (never mutating local originals):
+#      * If all artifacts match (allowing normalized equality) AND no override -> USE CI PATHS
+#      * If KEYCHAIN_FORCE_LOCAL=1 -> USE LOCAL PATHS (even if mismatches)
+#      * Otherwise any real mismatch aborts
+# 5. Display extracted release notes for confirmation
+# 6. Create or refresh release using chosen artifact paths
 # Usage: release-orchestrate.sh create|refresh <version>
 set -eu
 
@@ -117,8 +121,6 @@ for artifact in keychain keychain.1 keychain-$VER.tar.gz; do
         # Normalize and compare ignoring Pod::Man header line.
         if diff -u <(tail -n +2 "$artifact") <(tail -n +2 "$CI_DIR/$artifact") >/dev/null 2>&1; then
           printf '  %-20s (normalized match ignoring Pod::Man header)\n' "$artifact"
-          # Adopt CI version so released man page reflects builder environment deterministically.
-          cp -f "$CI_DIR/$artifact" "$artifact"
         else
           printf '  %-20s LOCAL %s != CI %s  *DIFF* (content mismatch beyond header)\n' "$artifact" "$L" "$R"
           diff_flag=1
@@ -133,8 +135,6 @@ for artifact in keychain keychain.1 keychain-$VER.tar.gz; do
           printf '  %-20s %s (match)\n' "$artifact" "$L"
         else
           printf '  %-20s (content match; tar/gzip metadata differ)\n' "$artifact"
-          # Optional: adopt CI tarball for consistency (uncomment if desired)
-          # cp -f "$CI_DIR/$artifact" "$artifact"
         fi
       else
         printf '  %-20s *CONTENT DIFF* (see above messages)\n' "$artifact"
@@ -147,7 +147,7 @@ done
 if [ $diff_flag -ne 0 ]; then
   echo
   echo "Artifact mismatch detected between LOCAL build and CI (Debian) build." >&2
-  echo "Release aborted to preserve deterministic provenance." >&2
+  echo "Release aborted (provenance mismatch) unless KEYCHAIN_FORCE_LOCAL=1 is set." >&2
   echo
   echo "Copy/paste diff commands:" >&2
   echo "  VER=$VER; CI_DIR=$CI_DIR" >&2
@@ -156,21 +156,27 @@ if [ $diff_flag -ne 0 ]; then
   echo "  diff -u <(tar tzf keychain-$VER.tar.gz | sort) <(tar tzf $CI_DIR/keychain-$VER.tar.gz | sort)" >&2
   echo "  mkdir -p /tmp/kc-local /tmp/kc-ci && tar xzf keychain-$VER.tar.gz -C /tmp/kc-local && tar xzf $CI_DIR/keychain-$VER.tar.gz -C /tmp/kc-ci && diff -ru /tmp/kc-local/keychain-$VER /tmp/kc-ci/keychain-$VER" >&2
   echo
-  echo "Override options (explicit user intent required):" >&2
-  echo "  Use LOCAL artifacts: KEYCHAIN_FORCE_LOCAL=1 make $( [ "$MODE" = refresh ] && echo release-refresh || echo release )" >&2
-  echo "  Adopt CI artifacts: KEYCHAIN_ADOPT_CI=1 make $( [ "$MODE" = refresh ] && echo release-refresh || echo release )" >&2
-  echo
   if [ "${KEYCHAIN_FORCE_LOCAL:-}" = 1 ]; then
-    echo "KEYCHAIN_FORCE_LOCAL=1 set: proceeding with LOCAL artifacts despite mismatch." >&2
-  elif [ "${KEYCHAIN_ADOPT_CI:-}" = 1 ]; then
-    echo "KEYCHAIN_ADOPT_CI=1 set: replacing local artifacts with CI versions where available." >&2
-    for a in keychain-$VER.tar.gz keychain keychain.1; do
-      [ -f "$CI_DIR/$a" ] && cp -f "$CI_DIR/$a" "$a"
-    done
+    echo "KEYCHAIN_FORCE_LOCAL=1 set: proceeding using LOCAL artifacts despite mismatches." >&2
   else
     exit 1
   fi
 fi
+
+# Decide which artifact paths to publish (never overwrite local originals)
+if [ "${KEYCHAIN_FORCE_LOCAL:-}" = 1 ]; then
+  KEYCHAIN_ASSET_KEYCHAIN="keychain"
+  KEYCHAIN_ASSET_MAN="keychain.1"
+  KEYCHAIN_ASSET_TARBALL="keychain-$VER.tar.gz"
+  echo "Source selection: USING LOCAL artifacts (override)." >&2
+else
+  # All artifacts matched (raw or normalized) -> use CI versions
+  KEYCHAIN_ASSET_KEYCHAIN="$CI_DIR/keychain"
+  KEYCHAIN_ASSET_MAN="$CI_DIR/keychain.1"
+  KEYCHAIN_ASSET_TARBALL="$CI_DIR/keychain-$VER.tar.gz"
+  echo "Source selection: USING CI artifacts (canonical)." >&2
+fi
+export KEYCHAIN_ASSET_KEYCHAIN KEYCHAIN_ASSET_MAN KEYCHAIN_ASSET_TARBALL
 
 # 3. Extract release notes section for confirmation
 NOTES_FILE=$(mktemp)
