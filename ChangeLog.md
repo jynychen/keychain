@@ -1,5 +1,31 @@
-# ChangeLog for Keychain
-https://www.funtoo.org/Funtoo:Keychain
+# ChangeLog for Keychain - https://github.com/danielrobbins/keychain
+
+## keychain 2.9.6 (06 Sep 2025)
+
+Documentation/branding release (no functional code changes):
+
+* Updated references in wiki to reflect the new official home of Keychain at
+  https://github.com/danielrobbins/keychain.
+* Consolidate historical references; retain only intentional archival note(s).
+
+Additional release engineering improvements:
+
+* Add release automation helpers: Makefile `release` (fast-fail) and
+  `release-refresh` (asset replace), plus scripts under `scripts/` and
+  GitHub Actions workflow to build artifacts on tag push.
+* Add `docs/release-steps.md` to formalize release process (numeric tags only,
+  assets: tarball, wrapper script, man page).
+* Introduced orchestrated release flow (`make release` / `make release-refresh`) with:
+  - CI (Debian container) artifact fetch and sha256 digest comparison against local build.
+  - Deterministic provenance gate: mismatches abort by default (no prompt).
+  - Explicit override environment variables: `KEYCHAIN_FORCE_LOCAL=1` (trust local),
+    `KEYCHAIN_ADOPT_CI=1` (adopt CI artifacts) when differences are intentional.
+  - Copy/paste diff command hints emitted on mismatch for rapid investigation.
+  - Release notes extraction + interactive confirmation prior to publish.
+* Added script layer: `release-orchestrate.sh`, `fetch-ci-artifacts.sh` wrapping low-level
+  create/refresh scripts for a reproducible, inspectable workflow.
+* Workflow updated to build artifacts only (staging) — publication remains an explicit
+  maintainer action (no auto-release on tag push) to reduce accidental releases.
 
 ## keychain 2.9.5 (16 May 2025)
 

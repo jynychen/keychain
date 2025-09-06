@@ -25,7 +25,7 @@ keychain.spec: keychain.spec.in keychain.sh
 
 keychain.1: keychain.pod keychain.sh
 	pod2man --name=keychain --release=$V \
-		--center='https://www.funtoo.org' \
+		--center='https://github.com/danielrobbins/keychain' \
 		keychain.pod keychain.1
 	sed -i.orig -e "s/^'br/.br/" keychain.1
 
@@ -64,3 +64,24 @@ keychain-$V.tar.gz: $(TARBALL_CONTENTS)
 	/bin/tar czvf keychain-$V.tar.gz keychain-$V
 	rm -rf keychain-$V
 	ls -l keychain-$V.tar.gz
+
+# --- Release Automation Helpers ---
+.PHONY: release release-refresh
+
+RELEASE_ASSETS=keychain-$V.tar.gz keychain keychain.1
+
+# "release" will orchestrate a tagged release with CI artifact validation & confirmation.
+release: $(RELEASE_ASSETS)
+	@echo "Orchestrating release $(V)"; \
+	if [ -z "$$GITHUB_TOKEN" ]; then \
+		echo "GITHUB_TOKEN not set; export a repo-scoped token to proceed." >&2; exit 1; \
+	fi; \
+	./scripts/release-orchestrate.sh create $(V)
+
+# "release-refresh" updates assets of an existing GitHub release (e.g. fixups) with CI validation.
+release-refresh: $(RELEASE_ASSETS)
+	@echo "Orchestrating release-refresh $(V)"; \
+	if [ -z "$$GITHUB_TOKEN" ]; then \
+		echo "GITHUB_TOKEN not set; export a repo-scoped token to proceed." >&2; exit 1; \
+	fi; \
+	./scripts/release-orchestrate.sh refresh $(V)

@@ -2,7 +2,7 @@
 
 versinfo() {
 	qprint
-	qprint "   Copyright ${CYANN}2009-##CUR_YEAR##${OFF} Daniel Robbins, Funtoo Solutions, Inc;"
+	qprint "   Copyright ${CYANN}2009-##CUR_YEAR##${OFF} Daniel Robbins, BreezyOps;"
 	qprint "   lockfile() Copyright ${CYANN}2009${OFF} Parallels, Inc."
 	qprint "   Copyright ${CYANN}2007${OFF} Aron Griffis;"
 	qprint "   Copyright ${CYANN}2002-2006${OFF} Gentoo Foundation;"
@@ -270,7 +270,7 @@ findpids() {
 
 	# If none worked, we're stuck
 	error "Unable to use \"ps\" to scan for $fp_prog-agent processes"
-	error "Please report to https://github.com/funtoo/keychain/issues."
+	error "Please report to https://github.com/danielrobbins/keychain/issues."
 	return 1
 }
 
@@ -927,7 +927,7 @@ $color || unset BLUE CYAN CYANN GREEN PURP OFF RED
 [ "$myaction" = list-fp ] && eval "$(catpidf_shell sh)" && exec ssh-add -L
 
 qprint #initial newline
-mesg "${PURP}keychain ${OFF}${CYANN}${version}${OFF} ~ ${GREEN}https://www.funtoo.org/Funtoo:Keychain${OFF}"
+mesg "${PURP}keychain ${OFF}${CYANN}${version}${OFF} ~ ${GREEN}https://github.com/danielrobbins/keychain${OFF}"
 
 [ "$myaction" = version ] && { versinfo; exit 0; }
 [ "$myaction" = help ] && { versinfo; helpinfo; exit 0; }

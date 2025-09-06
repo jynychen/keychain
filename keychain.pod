@@ -31,8 +31,7 @@ these credentials are cached in memory and available for use.
 Keychain supports most UNIX-like operating systems. It supports integration
 with Bourne-compatible, csh-compatible and fish shells.
 
-Additional documentation for Keychain can be found on
-L<the Keychain wiki page|https://www.funtoo.org/Funtoo:Keychain>.
+Official project home: L<https://github.com/danielrobbins/keychain>.
 
 =head1 LIFECYCLE
 
@@ -643,7 +642,9 @@ L<ssh-agent(1)>, L<gpg-agent(1)>, L<ssh-add(1)>, L<ssh(1)>
 
 =head1 NOTES
 
-Keychain was created and is currently maintained by Daniel Robbins. If you need
-to report a bug or request an enhancement, please report it to the GitHub
-project page at L<https://github.com/funtoo/keychain>.  For more information
-about keychain, please visit L<https://www.funtoo.org/Funtoo:Keychain>.
+Keychain was created and is currently maintained by Daniel Robbins. To report a
+bug or request an enhancement, use the issue tracker at
+L<https://github.com/danielrobbins/keychain>.
+
+The former Funtoo Linux wiki page is preserved only as an historical reference:
+L<https://www.funtoo.org/Funtoo:Keychain>.

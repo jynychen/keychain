@@ -1,0 +1,57 @@
+name: release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm-slim
+    steps:
+      - name: Prepare build dependencies
+        run: |
+          apt-get update -y
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates make perl jq git awk sed gzip
+          rm -rf /var/lib/apt/lists/*
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify tag/version consistency
+        id: ver
+        run: |
+          TAG_NAME="${GITHUB_REF##*/}"
+          FILE_VER=$(cat VERSION)
+          if [ "$TAG_NAME" != "$FILE_VER" ]; then
+            echo "Tag $TAG_NAME does not match VERSION file $FILE_VER" >&2
+            exit 1
+          fi
+          echo "version=$TAG_NAME" >> $GITHUB_OUTPUT
+      - name: Build
+        run: |
+          make clean
+          make keychain-$(cat VERSION).tar.gz
+      - name: Extract changelog section
+        run: |
+          ver=$(cat VERSION)
+          awk -v ver="$ver" '/^## keychain '"$ver"' /{f=1;print;next} /^## keychain / && f && $0 !~ ver {exit} f' ChangeLog.md > .release-notes.md
+          if [ ! -s .release-notes.md ]; then
+            echo "Failed to extract changelog for $ver" >&2
+            exit 1
+          fi
+      - name: Upload artifacts (build only; manual publish step remains maintainer-driven)
+        uses: actions/upload-artifact@v4
+        with:
+            name: keychain-${{ steps.ver.outputs.version }}-artifacts
+            path: |
+              keychain-${{ steps.ver.outputs.version }}.tar.gz
+              keychain
+              keychain.1
+              .release-notes.md
+      - name: Summary
+        run: |
+          echo 'Artifacts prepared. Use make release or release-refresh locally to publish via API if desired.' >> $GITHUB_STEP_SUMMARY

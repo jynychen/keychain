@@ -16,10 +16,6 @@ allowing your scripts to take advantage of key-based logins.
 `Keychain` also integrates with `gpg-agent`, so that GPG keys can be cached
 at the same time as SSH keys.
 
-**Additional documentation for Keychain can be found on [the Keychain
-wiki page](https://www.funtoo.org/Funtoo:Keychain).**
-
-
 IMPORTANT - GitHub Contributors
 ===============================
 
