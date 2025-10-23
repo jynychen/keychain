@@ -337,7 +337,7 @@ startagent_gpg() {
 		[ -n "${timeout}" ] && gpg_opts="$gpg_opts --default-cache-ttl $(( timeout * 60 )) --max-cache-ttl $(( timeout * 60 ))"
 		$ssh_spawn_gpg && gpg_opts="$gpg_opts --enable-ssh-support"
 		mesg "Starting gpg-agent..."
-		# shellcheck disable=SC2086 # this is intentionalh
+		# shellcheck disable=SC2086 # this is intentional
 		pidfile_out="$(gpg-agent --sh $gpg_opts)"
 		return $?
 	fi

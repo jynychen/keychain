@@ -1,0 +1,21 @@
+# Keychain project: enforce consistent Unix LF line endings on all platforms
+# Normalize all text files to LF on commit and checkout
+* text eol=lf
+
+# (Redundant clarity rules; kept for readability and future maintenance)
+*.sh     text eol=lf
+*.md     text eol=lf
+*.txt    text eol=lf
+*.pod    text eol=lf
+*.in     text eol=lf
+*.spec.in text eol=lf
+Makefile text eol=lf
+
+# If any binary assets are added later, declare them explicitly, e.g.:
+# *.png binary
+# *.jpg binary
+# *.gif binary
+
+# Prevent accidental CRLF introduction in scripts that may be generated
+scripts/* text eol=lf
+docs/*    text eol=lf
