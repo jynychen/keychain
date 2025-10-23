@@ -37,7 +37,7 @@ for f in "$ASSET_TARBALL" "$ASSET_KEYCHAIN" "$ASSET_MAN"; do
   [ -f "$f" ] || fail "Missing asset file $f"
   # Determine publish name (basename should remain canonical filenames)
   case $(basename "$f") in
-    keychain-$VER.tar.gz) pname="keychain-$VER.tar.gz";;
+    "keychain-$VER.tar.gz") pname="keychain-$VER.tar.gz";;
     keychain) pname="keychain";;
     keychain.1) pname="keychain.1";;
     *) # If path is different (e.g., CI dir), map by type heuristics

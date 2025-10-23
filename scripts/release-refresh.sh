@@ -29,7 +29,7 @@ ASSET_TARBALL=${KEYCHAIN_ASSET_TARBALL:-keychain-$VER.tar.gz}
 for f in "$ASSET_TARBALL" "$ASSET_KEYCHAIN" "$ASSET_MAN"; do
   [ -f "$f" ] || fail "Missing asset file $f"
   case $(basename "$f") in
-    keychain-$VER.tar.gz) pname="keychain-$VER.tar.gz";;
+    "keychain-$VER.tar.gz") pname="keychain-$VER.tar.gz";;
     keychain) pname="keychain";;
     keychain.1) pname="keychain.1";;
     *) if echo "$f" | grep -q "keychain-$VER.tar.gz"; then pname="keychain-$VER.tar.gz"; fi

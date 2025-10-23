@@ -2,7 +2,7 @@
 
 versinfo() {
 	qprint
-	qprint "   Copyright ${CYANN}2009-##CUR_YEAR##${OFF} Daniel Robbins, BreezyOps;"
+	qprint "   Copyright ${CYANN}2002-##CUR_YEAR##${OFF} Daniel Robbins, BreezyOps;"
 	qprint "   lockfile() Copyright ${CYANN}2009${OFF} Parallels, Inc."
 	qprint "   Copyright ${CYANN}2007${OFF} Aron Griffis;"
 	qprint "   Copyright ${CYANN}2002-2006${OFF} Gentoo Foundation;"
@@ -124,8 +124,7 @@ me=$(id -un) || die "Who are you?  id -un doesn't know..."
 # synopsis: testssh
 # Figure out which ssh is in use, set the global boolean $openssh and $sunssh
 testssh() {
-	# Query local host for SSH application, presently supporting
-	# OpenSSH, Sun SSH, and ssh.com
+	# Query local host for SSH application, presently supporting OpenSSH and Sun SSH:
 	openssh=false
 	sunssh=false
 
@@ -429,7 +428,7 @@ SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID"
 		else
 			mesg "Starting ssh-agent..."
 			# shellcheck disable=SC2086 # We purposely don't want to double-quote the args to ssh-agent so they disappear if not used:
-			pidfile_out="$(ssh-agent ${ssh_timeout} ${ssh_agent_socket})"
+			pidfile_out="$(ssh-agent -s ${ssh_timeout} ${ssh_agent_socket})"
 			return $?
 		fi
 	fi
@@ -438,18 +437,11 @@ SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID"
 write_pidfile() {
 	if [ -n "$pidfile_out" ]; then
 		pidfile_out=$(echo "$pidfile_out" | grep -v 'Agent pid')
+		case $pidfile_out in setenv\ *) error "unexpected csh-style ssh-agent output (expected -s)"; exit 1;; esac
 		rm -f "$pidf" "$cshpidf" "$fishpidf" # Remove first, so we can recreate with our umask
-		case "$pidfile_out" in
-			setenv*)
-				echo "$pidfile_out" >"$cshpidf"
-				echo "$pidfile_out" | awk '{print $2"="$3" export "$2";"}' >"$pidf"
-				;;
-			*)
-				echo "$pidfile_out" >"$pidf"
-				echo "$pidfile_out" | sed 's/;.*/;/' | sed 's/=/ /' | sed 's/^/setenv /' >"$cshpidf"
-				echo "$pidfile_out" | sed 's/;.*/;/' | sed 's/^\(.*\)=\(.*\);/set -e \1; set -x -U \1 \2;/' >"$fishpidf"
-				;;
-		esac
+		echo "$pidfile_out" >"$pidf"
+		echo "$pidfile_out" | sed 's/;.*/;/' | sed 's/=/ /' | sed 's/^/setenv /' >"$cshpidf"
+		echo "$pidfile_out" | sed 's/;.*/;/' | sed 's/^\(.*\)=\(.*\);/set -e \1; set -x -U \1 \2;/' >"$fishpidf"
 	else
 		debug skipping creation of pidfiles!
 	fi

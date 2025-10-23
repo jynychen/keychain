@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Orchestrated release creation/refresh with:
 # 1. Local build presence check (already performed via Makefile prereqs)
 # 2. CI artifact fetch (mandatory)
@@ -142,7 +142,7 @@ for artifact in keychain keychain.1 keychain-$VER.tar.gz; do
         fi
       fi
       ;;
-    keychain-$VER.tar.gz)
+    "keychain-$VER.tar.gz")
       if compare_tar_content "$artifact" "$CI_DIR/$artifact"; then
         # If tar blob hash matches display it; else note normalized match.
         L=$(calc_sha256 "$artifact"); R=$(calc_sha256 "$CI_DIR/$artifact")
@@ -203,7 +203,7 @@ sed 's/^/| /' "$NOTES_FILE"
 echo "========================================================================="
 
 printf 'Continue with %s of %s? (Y/N): ' "$MODE" "$VER"
-read ans < /dev/tty || ans=N
+read -r ans < /dev/tty || ans=N
 case "$ans" in
   Y|y) echo "Continuing...";;
   *) echo "Aborted by user."; exit 1;;
