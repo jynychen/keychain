@@ -41,6 +41,10 @@ New features:
   ([#186](https://github.com/danielrobbins/keychain/issues/186))
 * Added Makefile targets: `install-completions` and `uninstall-completions` for optional
   bash completion installation (separate from default install target).
+* Updated RPM spec file (`keychain.spec.in`) for modern distributions:
+  - Modernized description to focus on OpenSSH and GnuPG (removed obsolete ssh.com/Sun SSH)
+  - Updated dependencies: `sh-utils` → `coreutils`, added `Recommends: bash-completion`
+  - Added bash completion installation to RPM package
 
 Documentation:
 
