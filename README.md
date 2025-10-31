@@ -53,6 +53,18 @@ set show-all-if-ambiguous on
 ```
 Then restart your shell or run `bind -f ~/.inputrc`.
 
+Support This Project
+====================
+
+Keychain is maintained by [BreezyOps](https://breezyops.com) -
+Daniel Robbins' Open Source Innovation Lab. If you find it useful, please consider:
+
+- Starring the repository ⭐
+- Joining [Discussions](https://github.com/danielrobbins/keychain/discussions) to share tips and ask questions 💬
+- [Supporting development](https://paypal.me/breezyops) to help maintain and improve keychain! ❤️
+
+Your support helps keep this project alive and actively maintained, and supports the creation of future projects. Thank you!
+
 IMPORTANT - GitHub Contributors
 ===============================
 
