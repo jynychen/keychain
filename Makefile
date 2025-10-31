@@ -8,6 +8,9 @@ V ?= $(shell cat VERSION)
 D ?= $(shell date +'%d %b %Y')
 Y ?= $(shell date +'%Y')
 
+PREFIX ?= /usr/local
+COMPLETIONSDIR ?= $(PREFIX)/share/bash-completion/completions
+
 TARBALL_CONTENTS=keychain README.md ChangeLog.md COPYING.txt MAINTAINERS.txt keychain.pod keychain.1 keychain.spec
 
 all: keychain.1 keychain keychain.spec
@@ -85,3 +88,13 @@ release-refresh: $(RELEASE_ASSETS)
 		echo "GITHUB_TOKEN not set; export a repo-scoped token to proceed." >&2; exit 1; \
 	fi; \
 	./scripts/release-orchestrate.sh refresh $(V)
+
+# --- Bash Completion ---
+.PHONY: install-completions uninstall-completions
+
+install-completions:
+	install -d -m 0755 $(DESTDIR)$(COMPLETIONSDIR)
+	install -m 0644 completions/keychain.bash $(DESTDIR)$(COMPLETIONSDIR)/keychain
+
+uninstall-completions:
+	rm -f $(DESTDIR)$(COMPLETIONSDIR)/keychain

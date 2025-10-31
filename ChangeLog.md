@@ -27,17 +27,37 @@ Testing and quality improvements:
 * Added ShellCheck disable comments with justification for intentional POSIX ls usage.
 * Fixed Unicode arrow characters in comments that caused ShellCheck errors.
 
+New features:
+
+* Added bash completion support (`completions/keychain.bash`) with intelligent context-aware
+  completion for command-line options, SSH keys, GPG keys, and full `--extended` mode support.
+  Based on work by @mikkoi with significant enhancements for keychain 2.9.x features:
+  - Dynamically parses `keychain --help` for up-to-date option completion
+  - Completes SSH key names from `~/.ssh/*.pub` files
+  - Completes GPG key IDs (8-character short format)
+  - `--extended` mode: `sshk:<tab>`, `gpgk:<tab>`, `host:<tab>` with prefix completion
+  - Detects hostnames from `~/.ssh/config` for `host:` completion
+  - ShellCheck compliant
+  ([#186](https://github.com/danielrobbins/keychain/issues/186))
+* Added Makefile targets: `install-completions` and `uninstall-completions` for optional
+  bash completion installation (separate from default install target).
+
 Documentation:
 
 * Updated keychain.pod with detailed implementation notes for space handling, POSIX compliance,
   and the robust eval approach used in pidfile generation.
+* Standardized option ordering in keychain.pod to follow Unix convention (short option first,
+  then long option), ensuring compatibility with bash completion regex patterns.
 * Added comprehensive COMPATIBILITY section to keychain.pod documenting:
   - Minimum OpenSSH version (7.3+) and supported features
   - GnuPG 2.1+ requirements for gpg-agent integration
   - Shell compatibility (Bourne/POSIX, csh/tcsh, fish)
+  - **Git Bash (MSYS2) for Windows** - officially documented as supported platform
   - Legacy SSH implementation status (SunSSH, ssh.com)
   - Systemd user environment integration
   - Spaces in HOME and paths handling details
+* Updated README.md with bash completion installation instructions for both system-wide
+  and user-only installations.
 
 ## keychain 2.9.6 (06 Sep 2025)
 

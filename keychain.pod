@@ -484,7 +484,7 @@ specified together, which wasn't possible with C<--confhost>.
 This option changes the default gpg calls to use gpg2 instead to support
 distributions such as Ubuntu which has both gpg and gpg2
 
-=item B<--help -h>
+=item B<-h --help>
 
 Show help that looks remarkably like this man-page. As of 2.6.10,
 help is sent to stdout so it can be easily piped to a pager.
@@ -546,7 +546,7 @@ keys.
 Keychain will print lines in KEY=value format representing the values
 which are set by the agents.
 
-=item B<--quick -Q>
+=item B<-Q --quick>
 
 If an ssh-agent process is running then use it.  Don't verify the list
 of keys, other than making sure it's non-empty.  This option avoids
@@ -555,12 +555,12 @@ simultaneously without waiting on each other. See the
 L</THE QUICK SHORT-CIRCUIT> section for more information regarding
 how this fits into the overall startup algorithm.
 
-=item B<--quiet -q>
+=item B<-q --quiet>
 
 Only print messages in case of warning, error or required interactivity. As of
 version 2.6.10, this also suppresses "Identities added" messages for ssh-agent.
 
-=item B<--stop -k> I<which>
+=item B<-k --stop> I<which>
 
 Kill currently running ssh-agent processes and exit.
 
@@ -665,7 +665,7 @@ keychain or not. More advanced users can use one invocation of keychain to set
 the default timeout, and optionally set different timeouts for keys added by
 using a subsequent invocation of keychain.
 
-=item B<--version -V>
+=item B<-V --version>
 
 Show version information.
 
