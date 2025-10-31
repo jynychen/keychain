@@ -15,7 +15,7 @@ jobs:
         run: |
           apt-get update -y
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            ca-certificates make perl jq git gawk sed gzip tar
+            ca-certificates make perl jq git gawk sed gzip tar openssh-client
           rm -rf /var/lib/apt/lists/*
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +35,10 @@ jobs:
         run: |
           make clean
           make keychain-$(cat VERSION).tar.gz
+      - name: Test space-in-home handling
+        run: |
+          ver=$(cat VERSION)
+          ./scripts/test-space-home.sh "$ver"
       - name: Extract changelog section
         run: |
           ver=$(cat VERSION)

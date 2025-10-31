@@ -2,10 +2,10 @@
 
 versinfo() {
 	qprint
-	qprint "   Copyright ${CYANN}2002-##CUR_YEAR##${OFF} Daniel Robbins, BreezyOps;"
+	qprint "   Copyright ${CYANN}2002-##CUR_YEAR##${OFF} Daniel Robbins, BreezyOps"
 	qprint "   lockfile() Copyright ${CYANN}2009${OFF} Parallels, Inc."
-	qprint "   Copyright ${CYANN}2007${OFF} Aron Griffis;"
-	qprint "   Copyright ${CYANN}2002-2006${OFF} Gentoo Foundation;"
+	qprint "   Copyright ${CYANN}2007${OFF} Aron Griffis"
+	qprint "   Copyright ${CYANN}2002-2006${OFF} Gentoo Foundation"
 	qprint
 	qprint " Keychain is free software: you can redistribute it and/or modify"
 	qprint " it under the terms of the ${CYANN}GNU General Public License version 2${OFF} as"
@@ -121,6 +121,31 @@ EOHELP
 
 me=$(id -un) || die "Who are you?  id -un doesn't know..."
 
+# synopsis: get_owner path
+# Portable function to extract the owner (username) of a file or directory.
+# Handles usernames with spaces by using POSIX-defined ls -l output format.
+#
+# POSIX defines ls -l format as: permissions links owner group size ...
+# Field 3 is owner, field 4 is group. However, on some systems (e.g., Windows/Cygwin),
+# usernames can contain spaces, making field parsing ambiguous:
+#   - "drobbins drobbins 4096" -> owner="drobbins", group="drobbins", size=4096
+#   - "Mathew Binkley 197609 4096" -> owner="Mathew Binkley", group="197609", size=4096
+#
+# We distinguish by checking if the field after potential owner+space is numeric:
+# If field 5 is NOT numeric, then field 4 is part of the owner name (space in username).
+# If field 5 IS numeric, then field 4 is the group name (no space in username).
+get_owner() {
+	go_path="$1"
+	# shellcheck disable=SC2012 # Using ls -ld for POSIX-defined formatted output; not parsing ls in a loop
+	ls -ld "$go_path" 2>/dev/null | awk '{
+		result = $3
+		if (NF >= 5 && $5 !~ /^[0-9]+$/) {
+			result = result " " $4
+		}
+		print result
+	}'
+}
+
 # synopsis: testssh
 # Figure out which ssh is in use, set the global boolean $openssh and $sunssh
 testssh() {
@@ -151,8 +176,7 @@ verifykeydir() {
 	elif [ ! -d "${keydir}" ]; then
 		mkdir "${keydir}" || die "can't create ${keydir}"
 	fi
-	# shellcheck disable=SC2012 # The "stat" command is not in POSIX, but "ls" output is. So for compliance, do this:
-	dir_owner="$(ls -ld "${keydir}" | awk '{print $3}')"
+	dir_owner="$(get_owner "${keydir}")"
 	[ "$dir_owner" != "$me" ] && warn "${keydir} is owned by ${dir_owner}, not ${me}. Please fix."
 	# shellcheck disable=SC2012 # POSIX defines the first 9 chars of ls -l:
 	[ "$(ls -ld "${keydir}" | cut -c5-10)" != "------" ] && warn "Keychain dir has lax permissions. Use ${CYAN}chmod -R go-rwx '${keydir}'${OFF} to fix."
@@ -205,7 +229,7 @@ takelock() {
 	do
 		lockfile && return 0
 		sleep 0.1; counter=$(( counter + 1 ))
-	done 
+	done
 	rm -f "$lockf" && lockfile && return 0
 	return 1
 }
@@ -330,7 +354,7 @@ startagent_gpg() {
 	fi
 	if gpg_agent_sock="$( echo "GETINFO socket_name" | gpg-connect-agent --no-autostart | head -n1 | sed -n 's/^D //;1p' )" && [ -S "$gpg_agent_sock" ]; then
 		mesg "Using existing gpg-agent: ${CYANN}$gpg_agent_sock${OFF}"
-		pidfile_out="SSH_AUTH_SOCK=\"$gpg_agent_sock\"; export SSH_AUTH_SOCK" # make sure we adopt it
+		pidfile_out="SSH_AUTH_SOCK=$gpg_agent_sock; export SSH_AUTH_SOCK" # make sure we adopt it
 	else
 		gpg_opts="--daemon"
 		[ -n "${timeout}" ] && gpg_opts="$gpg_opts --default-cache-ttl $(( timeout * 60 )) --max-cache-ttl $(( timeout * 60 ))"
@@ -414,10 +438,10 @@ startagent_ssh() {
 	elif $allow_inherited && ssh_envcheck env; then
 		# If our env is OK, then let's grab it for our pidfile, as long as we don't have a forwarded ssh connection:
 		if [ "$SSH_AGENT_PID" != forwarded ]; then
-			pidfile_out="SSH_AUTH_SOCK=\"$SSH_AUTH_SOCK\"; export SSH_AUTH_SOCK"
+			pidfile_out="SSH_AUTH_SOCK=$SSH_AUTH_SOCK; export SSH_AUTH_SOCK"
 			if [ -n "$SSH_AGENT_PID" ]; then
 				pidfile_out="$pidfile_out
-SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID"
+SSH_AGENT_PID=$SSH_AGENT_PID; export SSH_AGENT_PID;"
 			fi
 		fi
 	else  # spawn, we must...
@@ -439,9 +463,29 @@ write_pidfile() {
 		pidfile_out=$(echo "$pidfile_out" | grep -v 'Agent pid')
 		case $pidfile_out in setenv\ *) error "unexpected csh-style ssh-agent output (expected -s)"; exit 1;; esac
 		rm -f "$pidf" "$cshpidf" "$fishpidf" # Remove first, so we can recreate with our umask
-		echo "$pidfile_out" >"$pidf"
-		echo "$pidfile_out" | sed 's/;.*/;/' | sed 's/=/ /' | sed 's/^/setenv /' >"$cshpidf"
-		echo "$pidfile_out" | sed 's/;.*/;/' | sed 's/^\(.*\)=\(.*\);/set -e \1; set -x -U \1 \2;/' >"$fishpidf"
+
+		# Robust approach: eval the output in a subshell to extract actual variable values
+		# This avoids fragile string parsing and handles any ssh-agent output format changes
+		wp_auth_sock=$(eval "$pidfile_out" >/dev/null 2>&1; echo "$SSH_AUTH_SOCK")
+		wp_agent_pid=$(eval "$pidfile_out" >/dev/null 2>&1; echo "$SSH_AGENT_PID")
+
+		# Write sh format - quote SSH_AUTH_SOCK to handle spaces, SSH_AGENT_PID is numeric
+		{
+			[ -n "$wp_auth_sock" ] && echo "SSH_AUTH_SOCK=\"${wp_auth_sock}\"; export SSH_AUTH_SOCK"
+			[ -n "$wp_agent_pid" ] && echo "SSH_AGENT_PID=${wp_agent_pid}; export SSH_AGENT_PID;"
+		} >"$pidf"
+
+		# Write csh format
+		{
+			[ -n "$wp_auth_sock" ] && echo "setenv SSH_AUTH_SOCK \"${wp_auth_sock}\";"
+			[ -n "$wp_agent_pid" ] && echo "setenv SSH_AGENT_PID ${wp_agent_pid};"
+		} >"$cshpidf"
+
+		# Write fish format
+		{
+			[ -n "$wp_auth_sock" ] && echo "set -e SSH_AUTH_SOCK; set -x -U SSH_AUTH_SOCK \"${wp_auth_sock}\";"
+			[ -n "$wp_agent_pid" ] && echo "set -e SSH_AGENT_PID; set -x -U SSH_AGENT_PID ${wp_agent_pid};"
+		} >"$fishpidf"
 	else
 		debug skipping creation of pidfiles!
 	fi
@@ -720,7 +764,7 @@ extkey_expand() {
 	done
 }
 
-# Synopsis: gets all extended keys. SSH keys are in "sshk:<filename>" format. GPG fingerprints 
+# Synopsis: gets all extended keys. SSH keys are in "sshk:<filename>" format. GPG fingerprints
 # are in "gpgk:<fp>" format. Any SSH keys that cannot be found are expanded to "miss:<filename>,
 # which is used for warnings later. If --extended is specified, we expect "sshk:foo" format on
 # the command-line. Otherwise, we use cmdline_keys_to_extkey() to convert the standard command-
@@ -773,7 +817,7 @@ while [ -n "$1" ]; do
 		--absolute) absoluteopt=true ;;
 		--agents) shift; warn "--agents is deprecated, ignoring." ;;
 		--confhost) die "--confhost is deprecated; use \"${CYANN}--extended host:<hostname>${OFF}\" instead." ;;
-		--confallhosts) confallhosts=true ;; 
+		--confallhosts) confallhosts=true ;;
 		--confirm) confirmopt=true ;;
 		--debug|-D) debugopt=true ;;
 		--eval) evalopt=true ;;
@@ -891,8 +935,8 @@ for keyf in "$pidf" "$cshpidf" "$fishpidf"; do
 		# shellcheck disable=SC2012 # POSIX defines the first 9 chars of ls -l:
 		go_modes="$(ls -ld "${keyf}" | cut -c5-10 )"
 		[ "$go_modes" != "------" ] && warn "Some pidfiles have lax permissions. Use ${CYAN}chmod -R go-rwx '${keydir}'${OFF} to fix."
-		# shellcheck disable=SC2012
-		keyf_owner="$(ls -ld "${keyf}" | awk '{print $3}')" && [ "$keyf_owner" != "$me" ] && warn "${keyf} is owned by ${keyf_owner}, not ${me}. Please fix."
+		keyf_owner="$(get_owner "${keyf}")"
+		[ -n "$keyf_owner" ] && [ "$keyf_owner" != "$me" ] && warn "${keyf} is owned by ${keyf_owner}, not ${me}. Please fix."
 	fi
 done
 
@@ -1056,7 +1100,7 @@ load_ssh_keys() {
 load_gpg_keys() {
 	$noguiopt && unset DISPLAY
 	[ -n "$DISPLAY" ] || unset DISPLAY # DISPLAY="" can cause problems
-	GPG_TTY=$(tty) ; export GPG_TTY # fall back to ncurses pinentry 
+	GPG_TTY=$(tty) ; export GPG_TTY # fall back to ncurses pinentry
 	for key in "$@"; do
 		[ -z "$key" ] && continue
 		mesg "Adding gpg key: $key"
@@ -1066,7 +1110,7 @@ load_gpg_keys() {
 		if [ $ret -ne 0 ]; then
 			warn "Error adding gpg key (error code: $ret; output: $gpgout)"; return 1
 		fi
-	done 
+	done
 }
 
 load_ssh_keys || die "Unable to add keys"
