@@ -27,7 +27,7 @@ keychain.1: keychain.pod keychain.sh
 	pod2man --name=keychain --release=$V \
 		--center='https://github.com/danielrobbins/keychain' \
 		keychain.pod keychain.1
-	sed -i.orig -e "s/^'br/.br/" keychain.1
+	sed -i.orig -e "s/^'br /.br /" keychain.1
 
 keychain.1.gz: keychain.1
 	gzip -9 keychain.1
