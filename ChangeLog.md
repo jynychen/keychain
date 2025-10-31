@@ -1,5 +1,44 @@
 # ChangeLog for Keychain - https://github.com/danielrobbins/keychain
 
+## keychain 2.9.7 (31 Oct 2025)
+
+This release fixes critical issues with spaces in HOME directories and usernames, and adds official Git Bash on Windows compatibility.
+
+Bug fixes:
+
+* Fixed keychain failures when HOME directory path contains spaces (e.g., `C:\Users\John Doe`).
+  ([#188](https://github.com/danielrobbins/keychain/issues/188))
+* Fixed username detection for usernames containing spaces (e.g., "Mathew Binkley" on Windows).
+  Implemented portable `get_owner()` function using POSIX-defined `ls -ld` output format with
+  intelligent field parsing to distinguish space-in-username from normal owner/group fields.
+* Fixed pidfile generation to properly quote `SSH_AUTH_SOCK` paths containing spaces while
+  leaving `SSH_AGENT_PID` unquoted (numeric value). Rewrote `write_pidfile()` to use robust
+  eval-in-subshell approach for extracting variable values from ssh-agent output.
+* All pidfile formats (sh/csh/fish) now correctly handle paths with spaces.
+* Fixed ssh-agent invocation to always use `-s` option for Bourne-compatible output, simplifying
+  pidfile generation and improving compatibility across different environments.
+  ([#185](https://github.com/danielrobbins/keychain/issues/185))
+
+Testing and quality improvements:
+
+* Added `scripts/test-space-home.sh` - automated test harness that simulates HOME directories
+  with spaces and validates proper handling. Returns proper exit codes for CI integration.
+* Integrated space-in-home test into GitHub Actions release workflow to prevent regressions.
+* Added ShellCheck disable comments with justification for intentional POSIX ls usage.
+* Fixed Unicode arrow characters in comments that caused ShellCheck errors.
+
+Documentation:
+
+* Updated keychain.pod with detailed implementation notes for space handling, POSIX compliance,
+  and the robust eval approach used in pidfile generation.
+* Added comprehensive COMPATIBILITY section to keychain.pod documenting:
+  - Minimum OpenSSH version (7.3+) and supported features
+  - GnuPG 2.1+ requirements for gpg-agent integration
+  - Shell compatibility (Bourne/POSIX, csh/tcsh, fish)
+  - Legacy SSH implementation status (SunSSH, ssh.com)
+  - Systemd user environment integration
+  - Spaces in HOME and paths handling details
+
 ## keychain 2.9.6 (06 Sep 2025)
 
 Documentation/branding release (no functional code changes):
@@ -40,7 +79,7 @@ This is a bugfix release.
 * Fixed issues with indentation of `note()`, `warn()`, `mesg()`.
 
 * Convert `SSH_AUTH_SOCK in pidfile is invalid; ignoring it` into a debug message,
-  as this is normal when rebooting your system so is not really useful to show 
+  as this is normal when rebooting your system so is not really useful to show
   typically. ([#176](https://github.com/funtoo/keychain/issues/176))
 
 ## keychain 2.9.4 (14 May 2025)
@@ -76,24 +115,24 @@ the following updates:
 * Harden keychain so the use of the `--dir` and `--absolute` options cannot be
   used to instruct keychain to write pidfiles into insecure areas.
   ([#174](https://github.com/funtoo/keychain/issues/174))
-  
+
   Prior to this release, it was possible to use these options in combination
   with bad (empty) default umask to write pidfiles into a public area on disk
   where they were writable by other users. In the worst case, this could allow
   arbitrary execution of the contents of the malicious pidfile by keychain.
-  
+
   This hardening now makes it difficult for a user to configure their keychain
   in a way that would allow this to happen. Note that if you are not using the
-  `--dir` or `--absolute` options, keychain will use the `$HOME/.keychain` 
-  directory by default, which is typically under the full control of the 
-  current user and thus not exploitable. 
+  `--dir` or `--absolute` options, keychain will use the `$HOME/.keychain`
+  directory by default, which is typically under the full control of the
+  current user and thus not exploitable.
 
   The hardening changes include:
 
   * Setting a global restrictive `umask` in the script.
   * Remove pidfiles before redirecting data to them to ensure they are created
     with restrictive permissions from the `umask`.
-  * Check the keychain pidfile directory to ensure it is owned by the current 
+  * Check the keychain pidfile directory to ensure it is owned by the current
     user, and only the current user can access it (mode 700). If not, abort
     with an informative error message.
   * Check any existing pidfiles prior to use to make sure they are owned by the
@@ -144,7 +183,7 @@ These release notes contain a summary of all changes, including cumulative
 changes in pre-releases:
 
 * A new release after 8 years, with Daniel Robbins (script creator) returning as maintainer.
-* 60% of the script has been rewritten, and is now compliant with 
+* 60% of the script has been rewritten, and is now compliant with
 [ShellCheck](https://shellcheck.net).
 * `--agents` and `--inherit` options have been deprecated to improve ease-of-use.
 * `gpg-agent` no longer started by default -- only when a GPG key has been provided on the
