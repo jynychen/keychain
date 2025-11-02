@@ -17,7 +17,7 @@ This document defines the standard release process. Releases use **numeric tags 
 ## 3. Build Artifacts
 Manual build (optional; `make release` now auto-rebuilds prerequisites):
 ```
-make clean && make keychain-$(cat VERSION).tar.gz
+make clean && make dist/keychain-$(cat VERSION).tar.gz
 ```
 `make release` or `make release-refresh` will ensure these artifacts exist automatically.
 
@@ -26,7 +26,7 @@ Artifacts:
 - `keychain.1` (man page)
 - `keychain.spec`
 - `keychain.txt`
-- `keychain-<version>.tar.gz`
+- `dist/keychain-<version>.tar.gz`
 
 ## 4. Local Sanity Tests
 ```
@@ -62,7 +62,7 @@ You will see:
 3. Normalized comparison phase (LOCAL vs CI build):
    * `keychain` – raw sha256 digest compare.
    * `keychain.1` – raw hash first; if different, re-compare with the Pod::Man auto-generated first line stripped. A normalized match counts as a match (header differences ignored).
-   * `keychain-<version>.tar.gz` – unpack both tarballs; compare sorted file list and per-file sha256 (man page internally also normalized on first line). Blob-level tar/gzip metadata differences (mtime, uid, compression variance) are ignored if internal contents match.
+   * `dist/keychain-<version>.tar.gz` – unpack both tarballs; compare sorted file list and per-file sha256 (man page internally also normalized on first line). Blob-level tar/gzip metadata differences (mtime, uid, compression variance) are ignored if internal contents match.
    Outcome:
      - If all artifacts match (raw or normalized) -> Release uses the CI artifact files directly (local artifacts remain untouched for auditing).
      - If any real content mismatch exists -> Abort.
@@ -92,7 +92,7 @@ Both require `GITHUB_TOKEN` (repo scope) exported in the environment.
 If you forgot something (docs only, same version):
 ```
 # Edit ChangeLog.md (if you need to adjust text; refresh will regenerate release notes from current ChangeLog plus provenance.)
-# Rebuild if needed (optional): make keychain-$(cat VERSION).tar.gz
+# Rebuild if needed (optional): make dist/keychain-$(cat VERSION).tar.gz
 make release-refresh
 ```
 You will again get CI fetch attempt, comparisons, preview, and prompt.
@@ -121,16 +121,16 @@ awk -v ver="$version" '/^## keychain 'ver' /{f=1;print;next} /^## keychain /&&f 
 
 ## 13. Verification Matrix
 | Item | Location | Must Match |
-|------|----------|-----------|
+|------|----------|------------|
 | Version tag | git tag | `VERSION` file |
 | Wrapper script | `keychain` | contains version string |
 | Man page header | `keychain.1` | version/date/center URL |
-| Tarball name | `keychain-<version>.tar.gz` | version |
+| Tarball name | `dist/keychain-<version>.tar.gz` | version |
 
 ## 14. Minimal Quick Release Recap
 ```
 $EDITOR ChangeLog.md VERSION
-make clean && make keychain-$(cat VERSION).tar.gz
+make clean && make dist/keychain-$(cat VERSION).tar.gz
 ./keychain --version
 git tag -s $(cat VERSION) -m "$(cat VERSION)"
 git push && git push --tags

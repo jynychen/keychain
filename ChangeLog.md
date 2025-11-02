@@ -1,5 +1,23 @@
 # ChangeLog for Keychain - https://github.com/danielrobbins/keychain
 
+## keychain 2.9.8 (2 Nov 2025)
+
+This release fixes the release tarball to include all necessary files for building and using keychain.
+
+Bug fixes:
+
+* Fixed release tarball generation to include bash completion script (`completions/keychain.bash`),
+  Makefile, source files, and other essential components. Previous release (2.9.7) tarball was
+  missing these files.
+* Improved tarball generation to use `git archive` as source of truth, eliminating manual file
+  inventory and preventing future omissions.
+* Updated release logic to use `dist/` directory for archive generation. GitHub workflow plumbing
+  work for new `/dist` tarball location, associated `Makefile` and CI fixes.
+
+Documentation:
+
+* Added bash completion information to keychain man page (NOTES section).
+
 ## keychain 2.9.7 (31 Oct 2025)
 
 This release fixes critical issues with spaces in HOME directories and usernames, and adds official Git Bash on Windows compatibility.

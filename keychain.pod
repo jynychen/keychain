@@ -737,5 +737,11 @@ Keychain was created and is currently maintained by Daniel Robbins. To report a
 bug or request an enhancement, use the issue tracker at
 L<https://github.com/danielrobbins/keychain>.
 
+Keychain includes bash completion support for command-line options, SSH keys,
+GPG keys, and extended mode prefixes (C<sshk:>, C<gpgk:>, C<host:>). The
+completion script is included in the source tarball at
+C<completions/keychain.bash>. For installation instructions, see the README
+file or run C<make install-completions>.
+
 The former Funtoo Linux wiki page is preserved only as an historical reference:
 L<https://www.funtoo.org/Funtoo:Keychain>.

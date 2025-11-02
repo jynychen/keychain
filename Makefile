@@ -11,8 +11,6 @@ Y ?= $(shell date +'%Y')
 PREFIX ?= /usr/local
 COMPLETIONSDIR ?= $(PREFIX)/share/bash-completion/completions
 
-TARBALL_CONTENTS=keychain README.md ChangeLog.md COPYING.txt MAINTAINERS.txt keychain.pod keychain.1 keychain.spec
-
 all: keychain.1 keychain keychain.spec
 
 .PHONY : tmpclean
@@ -23,10 +21,10 @@ tmpclean:
 clean: tmpclean
 	rm -rf keychain.1 keychain keychain.spec
 
-keychain.spec: keychain.spec.in keychain.sh
+keychain.spec: keychain.spec.in keychain.sh VERSION
 	sed 's/KEYCHAIN_VERSION/$V/' keychain.spec.in > keychain.spec
 
-keychain.1: keychain.pod keychain.sh
+keychain.1: keychain.pod keychain.sh VERSION
 	pod2man --name=keychain --release=$V \
 		--center='https://github.com/danielrobbins/keychain' \
 		keychain.pod keychain.1
@@ -61,20 +59,22 @@ keychain: keychain.sh keychain.txt VERSION MAINTAINERS.txt
 keychain.txt: keychain.pod
 	pod2text keychain.pod keychain.txt
 
-keychain-$V.tar.gz: $(TARBALL_CONTENTS)
-	mkdir keychain-$V
-	cp $(TARBALL_CONTENTS) keychain-$V
-	/bin/tar czvf keychain-$V.tar.gz keychain-$V
-	rm -rf keychain-$V
-	ls -l keychain-$V.tar.gz
+dist/keychain-$V.tar.gz: keychain keychain.1 keychain.spec
+	mkdir -p dist
+	rm -rf dist/keychain-$V
+	git archive --format=tar --prefix=keychain-$V/ HEAD | tar -xf - -C dist/
+	cp keychain keychain.1 keychain.spec dist/keychain-$V/
+	tar -C dist -czf dist/keychain-$V.tar.gz keychain-$V
+	rm -rf dist/keychain-$V
+	ls -l dist/keychain-$V.tar.gz
 
 # --- Release Automation Helpers ---
 .PHONY: release release-refresh
 
-RELEASE_ASSETS=keychain-$V.tar.gz keychain keychain.1
+RELEASE_ASSETS=dist/keychain-$V.tar.gz keychain keychain.1
 
 # "release" will orchestrate a tagged release with CI artifact validation & confirmation.
-release: $(RELEASE_ASSETS)
+release: clean $(RELEASE_ASSETS)
 	@echo "Orchestrating release $(V)"; \
 	if [ -z "$$GITHUB_TOKEN" ]; then \
 		echo "GITHUB_TOKEN not set; export a repo-scoped token to proceed." >&2; exit 1; \
@@ -82,7 +82,7 @@ release: $(RELEASE_ASSETS)
 	./scripts/release-orchestrate.sh create $(V)
 
 # "release-refresh" updates assets of an existing GitHub release (e.g. fixups) with CI validation.
-release-refresh: $(RELEASE_ASSETS)
+release-refresh: clean $(RELEASE_ASSETS)
 	@echo "Orchestrating release-refresh $(V)"; \
 	if [ -z "$$GITHUB_TOKEN" ]; then \
 		echo "GITHUB_TOKEN not set; export a repo-scoped token to proceed." >&2; exit 1; \

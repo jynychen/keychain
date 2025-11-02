@@ -7,4 +7,4 @@ keychain.txt
 keychain.spec
 .specstory/
 .ci-artifacts*/
-/keychain-*.tar.gz
+dist/

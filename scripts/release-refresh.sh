@@ -22,7 +22,7 @@ done
 echo "Uploading replacement assets..."
 ASSET_KEYCHAIN=${KEYCHAIN_ASSET_KEYCHAIN:-keychain}
 ASSET_MAN=${KEYCHAIN_ASSET_MAN:-keychain.1}
-ASSET_TARBALL=${KEYCHAIN_ASSET_TARBALL:-keychain-$VER.tar.gz}
+ASSET_TARBALL=${KEYCHAIN_ASSET_TARBALL:-dist/keychain-$VER.tar.gz}
 
 # (Note: By default we do not modify existing release notes. Set KEYCHAIN_UPDATE_NOTES=1 to rebuild.)
 

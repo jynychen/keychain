@@ -21,6 +21,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Fix git ownership for container
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Verify tag/version consistency
         id: ver
         run: |
@@ -34,7 +37,7 @@ jobs:
       - name: Build
         run: |
           make clean
-          make keychain-$(cat VERSION).tar.gz
+          make dist/keychain-$(cat VERSION).tar.gz
       - name: Test space-in-home handling
         run: |
           ver=$(cat VERSION)
@@ -52,7 +55,7 @@ jobs:
         with:
             name: keychain-${{ steps.ver.outputs.version }}-artifacts
             path: |
-              keychain-${{ steps.ver.outputs.version }}.tar.gz
+              dist/keychain-${{ steps.ver.outputs.version }}.tar.gz
               keychain
               keychain.1
               .release-notes.md

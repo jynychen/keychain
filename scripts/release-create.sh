@@ -13,7 +13,7 @@ notes_file=$(mktemp)
 # Artifact path vars (provided by orchestrator if using CI artifacts)
 ASSET_KEYCHAIN=${KEYCHAIN_ASSET_KEYCHAIN:-keychain}
 ASSET_MAN=${KEYCHAIN_ASSET_MAN:-keychain.1}
-ASSET_TARBALL=${KEYCHAIN_ASSET_TARBALL:-keychain-$VER.tar.gz}
+ASSET_TARBALL=${KEYCHAIN_ASSET_TARBALL:-dist/keychain-$VER.tar.gz}
 
 echo "Creating release $VER"
 json=$(mktemp)

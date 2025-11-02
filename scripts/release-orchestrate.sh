@@ -35,9 +35,9 @@ if [ "$MODE" = create ]; then
 fi
 
 # 1. Ensure local assets exist
-for f in keychain-$VER.tar.gz keychain keychain.1; do
+for f in dist/keychain-$VER.tar.gz keychain keychain.1; do
   [ -f "$f" ] || { echo "Missing local asset: $f" >&2; exit 1; }
-  done
+done
 
 # 2. Fetch CI artifacts (MANDATORY)
 CI_DIR=".ci-artifacts-$VER"
@@ -89,6 +89,9 @@ compare_tar_content() {
       h2=$(tail -n +2 "$tmp_ci/$root/$rel" | sha256sum | awk '{print $1}')
       if [ "$h1" != "$h2" ]; then
         echo "  keychain-$VER.tar.gz: content mismatch in $rel (beyond header)" >&2
+        echo "--- LOCAL: $rel" >&2
+        echo "+++ CI: $rel" >&2
+        diff -u <(tail -n +2 "$tmp_local/$root/$rel") <(tail -n +2 "$tmp_ci/$root/$rel") | head -20 >&2
         mismatch=1
       fi
     else
@@ -96,6 +99,9 @@ compare_tar_content() {
       h2=$(sha256sum "$tmp_ci/$root/$rel" | awk '{print $1}')
       if [ "$h1" != "$h2" ]; then
         echo "  keychain-$VER.tar.gz: content mismatch in $rel" >&2
+        echo "--- LOCAL: $rel" >&2
+        echo "+++ CI: $rel" >&2
+        diff -u "$tmp_local/$root/$rel" "$tmp_ci/$root/$rel" | head -20 >&2
         mismatch=1
       fi
     fi
@@ -111,48 +117,56 @@ EOF
 }
 
 # Process artifacts with specialized logic
-for artifact in keychain keychain.1 keychain-$VER.tar.gz; do
-  if [ ! -f "$CI_DIR/$artifact" ]; then
-    printf '  %-20s CI copy missing; comparison failed (abort)\n' "$artifact"
+for artifact in keychain keychain.1 dist/keychain-$VER.tar.gz; do
+  # Get basename for CI comparison
+  basename_artifact=$(basename "$artifact")
+  # Determine CI path (tarball is in dist/ subdirectory)
+  if [ "$basename_artifact" = "keychain-$VER.tar.gz" ]; then
+    ci_artifact_path="$CI_DIR/dist/$basename_artifact"
+  else
+    ci_artifact_path="$CI_DIR/$basename_artifact"
+  fi
+  if [ ! -f "$ci_artifact_path" ]; then
+    printf '  %-20s CI copy missing; comparison failed (abort)\n' "$basename_artifact"
     diff_flag=1
     continue
   fi
-  case "$artifact" in
+  case "$basename_artifact" in
     keychain)
-      L=$(calc_sha256 "$artifact"); R=$(calc_sha256 "$CI_DIR/$artifact")
+      L=$(calc_sha256 "$artifact"); R=$(calc_sha256 "$ci_artifact_path")
       if [ "$L" = "$R" ]; then
-        printf '  %-20s %s (match)\n' "$artifact" "$L"
+        printf '  %-20s %s (match)\n' "$basename_artifact" "$L"
       else
-        printf '  %-20s LOCAL %s != CI %s  *DIFF*\n' "$artifact" "$L" "$R"
+        printf '  %-20s LOCAL %s != CI %s  *DIFF*\n' "$basename_artifact" "$L" "$R"
         diff_flag=1
       fi
       ;;
     keychain.1)
       # Direct hash first
-      L=$(calc_sha256 "$artifact"); R=$(calc_sha256 "$CI_DIR/$artifact")
+      L=$(calc_sha256 "$artifact"); R=$(calc_sha256 "$ci_artifact_path")
       if [ "$L" = "$R" ]; then
-        printf '  %-20s %s (match)\n' "$artifact" "$L"
+        printf '  %-20s %s (match)\n' "$basename_artifact" "$L"
       else
         # Normalize and compare ignoring Pod::Man header line.
-        if diff -u <(tail -n +2 "$artifact") <(tail -n +2 "$CI_DIR/$artifact") >/dev/null 2>&1; then
-          printf '  %-20s (normalized match ignoring Pod::Man header)\n' "$artifact"
+        if diff -u <(tail -n +2 "$artifact") <(tail -n +2 "$ci_artifact_path") >/dev/null 2>&1; then
+          printf '  %-20s (normalized match ignoring Pod::Man header)\n' "$basename_artifact"
         else
-          printf '  %-20s LOCAL %s != CI %s  *DIFF* (content mismatch beyond header)\n' "$artifact" "$L" "$R"
+          printf '  %-20s LOCAL %s != CI %s  *DIFF* (content mismatch beyond header)\n' "$basename_artifact" "$L" "$R"
           diff_flag=1
         fi
       fi
       ;;
     "keychain-$VER.tar.gz")
-      if compare_tar_content "$artifact" "$CI_DIR/$artifact"; then
+      if compare_tar_content "$artifact" "$ci_artifact_path"; then
         # If tar blob hash matches display it; else note normalized match.
-        L=$(calc_sha256 "$artifact"); R=$(calc_sha256 "$CI_DIR/$artifact")
+        L=$(calc_sha256 "$artifact"); R=$(calc_sha256 "$ci_artifact_path")
         if [ "$L" = "$R" ]; then
-          printf '  %-20s %s (match)\n' "$artifact" "$L"
+          printf '  %-20s %s (match)\n' "$basename_artifact" "$L"
         else
-          printf '  %-20s (content match; tar/gzip metadata differ)\n' "$artifact"
+          printf '  %-20s (content match; tar/gzip metadata differ)\n' "$basename_artifact"
         fi
       else
-        printf '  %-20s *CONTENT DIFF* (see above messages)\n' "$artifact"
+        printf '  %-20s *CONTENT DIFF* (see above messages)\n' "$basename_artifact"
         diff_flag=1
       fi
       ;;
@@ -168,8 +182,8 @@ if [ $diff_flag -ne 0 ]; then
   echo "  VER=$VER; CI_DIR=$CI_DIR" >&2
   echo "  diff -u keychain \"$CI_DIR/keychain\"" >&2
   echo "  diff -u keychain.1 \"$CI_DIR/keychain.1\"" >&2
-  echo "  diff -u <(tar tzf keychain-$VER.tar.gz | sort) <(tar tzf $CI_DIR/keychain-$VER.tar.gz | sort)" >&2
-  echo "  mkdir -p /tmp/kc-local /tmp/kc-ci && tar xzf keychain-$VER.tar.gz -C /tmp/kc-local && tar xzf $CI_DIR/keychain-$VER.tar.gz -C /tmp/kc-ci && diff -ru /tmp/kc-local/keychain-$VER /tmp/kc-ci/keychain-$VER" >&2
+  echo "  diff -u <(tar tzf dist/keychain-$VER.tar.gz | sort) <(tar tzf $CI_DIR/dist/keychain-$VER.tar.gz | sort)" >&2
+  echo "  mkdir -p /tmp/kc-local /tmp/kc-ci && tar xzf dist/keychain-$VER.tar.gz -C /tmp/kc-local && tar xzf $CI_DIR/dist/keychain-$VER.tar.gz -C /tmp/kc-ci && diff -ru /tmp/kc-local/keychain-$VER /tmp/kc-ci/keychain-$VER" >&2
   echo
   if [ "${KEYCHAIN_FORCE_LOCAL:-}" = 1 ]; then
     echo "KEYCHAIN_FORCE_LOCAL=1 set: proceeding using LOCAL artifacts despite mismatches." >&2
@@ -182,13 +196,13 @@ fi
 if [ "${KEYCHAIN_FORCE_LOCAL:-}" = 1 ]; then
   KEYCHAIN_ASSET_KEYCHAIN="keychain"
   KEYCHAIN_ASSET_MAN="keychain.1"
-  KEYCHAIN_ASSET_TARBALL="keychain-$VER.tar.gz"
+  KEYCHAIN_ASSET_TARBALL="dist/keychain-$VER.tar.gz"
   echo "Source selection: USING LOCAL artifacts (override)." >&2
 else
   # All artifacts matched (raw or normalized) -> use CI versions
   KEYCHAIN_ASSET_KEYCHAIN="$CI_DIR/keychain"
   KEYCHAIN_ASSET_MAN="$CI_DIR/keychain.1"
-  KEYCHAIN_ASSET_TARBALL="$CI_DIR/keychain-$VER.tar.gz"
+  KEYCHAIN_ASSET_TARBALL="$CI_DIR/dist/keychain-$VER.tar.gz"
   echo "Source selection: USING CI artifacts (canonical)." >&2
 fi
 export KEYCHAIN_ASSET_KEYCHAIN KEYCHAIN_ASSET_MAN KEYCHAIN_ASSET_TARBALL
