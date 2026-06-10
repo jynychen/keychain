@@ -140,6 +140,12 @@ With no flags, both ssh and gpg are wiped.
     wipe --gpg        gpg only
     wipe --ssh --gpg  same as bare ``wipe``
 
+If you use ``gpg-agent`` as your SSH agent via ``--ssh-spawn-gpg`` or
+``--ssh-allow-gpg``, SSH identities may be backed by ``gpg-agent`` rather than
+``ssh-agent``. In that case, ``wipe --ssh`` only asks ``ssh-agent`` to remove
+its identities; use ``wipe --gpg``, or bare ``wipe``, to clear identities cached
+by ``gpg-agent``.
+
 == @action forget: Evict specific SSH keys from ssh-agent.
 
 @syntax keychain forget [KEYS...]
@@ -421,11 +427,15 @@ Emit a JSON array of key records on stdout.
 
 == @option wipe-ssh: wipe SSH agent only
 
-Wipe only the keys held by ssh-agent.
+Wipe only the keys held by ``ssh-agent``. If your SSH identities are exposed by
+``gpg-agent`` via ``--ssh-spawn-gpg`` or ``--ssh-allow-gpg``, use
+``wipe --gpg`` instead.
 
 == @option wipe-gpg: wipe GPG agent only
 
-Wipe only the keys held by gpg-agent.
+Wipe only the keys held by ``gpg-agent``. This is also the right target for SSH
+identities exposed by ``gpg-agent`` when using ``--ssh-spawn-gpg`` or
+``--ssh-allow-gpg``.
 
 == @option env-shell: output target (default: env)
 

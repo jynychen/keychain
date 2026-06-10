@@ -211,6 +211,30 @@ def test_man_commands(playbook: PlaybookRunner):
     assert out_list or err, "Expected output from keychain man --list"
 
 
+def test_wipe_routes_ssh_and_gpg_targets(playbook: PlaybookRunner, monkeypatch):
+    """Verify wipe target routing for GPG-backed SSH agents (issue #163)."""
+    from keychain import agents
+
+    calls: list[str] = []
+
+    monkeypatch.setattr(platform, "detect", lambda *_args, **_kwargs: platform._classify("linux", has_ps=True))
+    monkeypatch.setattr(agents.SshAgent, "wipe", lambda self: calls.append("ssh"))
+    monkeypatch.setattr(agents.GpgAgent, "wipe", lambda self: calls.append("gpg"))
+
+    playbook.set_host("testhost")
+
+    playbook.run("wipe", "--ssh")
+    assert calls == ["ssh"]
+
+    calls.clear()
+    playbook.run("wipe", "--gpg")
+    assert calls == ["gpg"]
+
+    calls.clear()
+    playbook.run("wipe")
+    assert calls == ["ssh", "gpg"]
+
+
 @POSIX_AGENT_ONLY
 def test_add_with_only_missing_keys_does_not_start_agent(playbook: PlaybookRunner):
     """Verify that a fully unresolved SSH key does not spawn an agent as a side effect."""

@@ -261,7 +261,7 @@ class TestSshEnvcheckUnknownSource:
     def test_unknown_source_message_includes_path_and_does_not_claim_forwarded(self, tmp_path, monkeypatch):
         """Verify envcheck names an otherwise valid socket as unknown source because without PID or GnuPG evidence it must not claim the socket was forwarded."""
         sock_path = tmp_path / "agent.sock"
-        sock_path.write_text("")  # placeholder; ssh_socket_valid is mocked
+        sock_path.write_text("")  # placeholder; validate_ssh_socket is mocked
         captured: list[str] = []
 
         class _Out:
@@ -282,13 +282,13 @@ class TestSshEnvcheckUnknownSource:
 
         # Pretend the socket is valid and that GnuPG isn't supplying it,
         # so we hit the "unknown source" branch.
-        monkeypatch.setattr(agents, "ssh_socket_valid", lambda _: True)
+        monkeypatch.setattr(agents, "validate_ssh_socket", lambda sock: agents.SocketValidation(sock, True))
         monkeypatch.setattr(agents, "gpg_ssh_socket", lambda: None)
 
         env = SshAgentRef(str(sock_path))
         # Build a minimal SshAgent: envcheck reads self._allow_gpg and
         # self._allow_forwarded (latched by start()), self.out, and the host
-        # probes ssh_socket_valid / gpg_ssh_socket which we mocked above.
+        # probes validate_ssh_socket / gpg_ssh_socket which we mocked above.
         from keychain import state
         from keychain.paths import KeychainPaths
 
