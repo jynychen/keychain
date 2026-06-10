@@ -1,0 +1,22 @@
+# Pre-commit hooks. Install with ``pre-commit install`` (provided by the
+# ``pip install -e .[lint]`` extra). Hooks run on staged files at commit
+# time and in CI via the ``pre-commit/action`` GitHub Action.
+#
+# ruff-format auto-reformats (no --check; apply directly).
+# ruff auto-fixes lint issues.
+# Both run before the hygiene hooks so fixes are in place before those checks.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: [--fix]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict

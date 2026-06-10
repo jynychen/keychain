@@ -1,0 +1,165 @@
+name: python-ci
+
+# Tiered triggering keeps PR feedback fast while still doing a full
+# cross-platform sweep on every master push, weekly, and on demand.
+# Feature-branch pushes get the fast tier (same as PRs) so contributors
+# see CI feedback before opening a PR.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Monday 06:00 UTC: catches drift on runner image / Python rolling
+    # bugfix releases without humans needing to remember to push.
+    - cron: '0 6 * * 1'
+
+# Default to read-only for every job; neither static analysis nor pytest
+# needs anything more.
+permissions:
+  contents: read
+
+# Use bash for every run: step so that single-quoted pip extras work
+# consistently on all platforms (PowerShell on Windows handles them
+# differently in some edge cases) and inside Linux containers.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Static analysis (ruff + mypy + bandit). One job, fast, fails fast.
+  # -------------------------------------------------------------------------
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install lint extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[lint]'
+      - name: ruff
+        run: ruff check .
+      - name: mypy
+        run: mypy
+      - name: bandit
+        run: bandit -r src/keychain -c pyproject.toml
+
+  # -------------------------------------------------------------------------
+  # Fast tier — runs on every event (PR, push, cron, dispatch).
+  #
+  # Floor + ceiling on Linux + Windows-on-ceiling. Rationale:
+  #   - 3.9 (floor) catches usage of features added later.
+  #   - 3.13 (ceiling) catches deprecations and stdlib drift.
+  #   - Windows × 3.13 catches POSIX-only assumptions; OS-portability
+  #     bugs almost never differ between Python minor versions, so one
+  #     Windows job is enough for PR-time feedback.
+  #   - macOS is intentionally omitted from this tier because it's a
+  #     POSIX system whose failures correlate ~100% with Linux. The
+  #     full sweep below restores macOS coverage on master.
+  # -------------------------------------------------------------------------
+  test-fast:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.9"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: windows-latest
+            python-version: "3.13"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+      - name: pytest
+        run: python -m pytest -v --tb=short --cov=src/keychain --cov-branch --cov-report=term-missing:skip-covered
+
+  # -------------------------------------------------------------------------
+  # Production-target authenticity: Rocky Linux 8 + python3.9 module.
+  #
+  # This is the documented install path for RHEL 8 / Rocky 8 users
+  # (see docs/python-version-modernization.md). Validating it on every
+  # commit keeps three risks contained:
+  #   - The 3.9-floor guard in src/keychain/__init__.py wiring.
+  #   - The polyglot sh/python multi-version probing shebang baked
+  #     into keychain.pyz by the Makefile.
+  #   - Subtle stdlib differences between AppStream's python3.9 build
+  #     and the upstream cpython binary that setup-python ships.
+  # -------------------------------------------------------------------------
+  test-rocky8-py39:
+    runs-on: ubuntu-latest
+    container:
+      image: rockylinux:8
+    steps:
+      - name: install python3.9 module + build prerequisites
+        # git: needed by actions/checkout
+        # python39: AppStream's RHEL-shipped 3.9 -- our actual target
+        # gcc + python39-devel: allow C-extension wheels (psutil) to
+        #   build from source if no manylinux wheel matches; not
+        #   strictly required today (no C deps) but cheap insurance
+        #   against transitive deps growing one later.
+        # make: builds keychain.pyz for the smoke test below.
+        run: |
+          dnf install -y git make gcc
+          dnf module install -y python39
+          dnf install -y python39-devel
+      - uses: actions/checkout@v4
+      - name: python version
+        run: python3.9 --version
+      - name: install package
+        run: |
+          python3.9 -m pip install --upgrade pip
+          python3.9 -m pip install -e '.[dev]'
+      - name: pytest
+        run: python3.9 -m pytest -v --tb=short --cov=src/keychain --cov-branch --cov-report=term-missing:skip-covered
+      - name: build polyglot zipapp & smoke-test shebang resolution
+        # /usr/bin/python3 on Rocky 8 is 3.6.8; the shebang must still
+        # find python3.9 via the polyglot probe. If the probe regresses
+        # to /usr/bin/env python3, the version-floor guard fires and
+        # this step exits 2.
+        run: |
+          make keychain.pyz
+          ./keychain.pyz version
+          ./keychain.pyz help >/dev/null
+
+  # -------------------------------------------------------------------------
+  # Full sweep — runs on master pushes, tags, weekly cron, and manual
+  # dispatch. *Skipped on PRs and feature-branch pushes* to keep PR and
+  # day-to-day feedback under a few minutes. If a branch needs the full
+  # sweep before merge (e.g. touching subprocess wiring, signal handling,
+  # path resolution), a maintainer can trigger it via the Actions tab →
+  # "Run workflow".
+  # -------------------------------------------------------------------------
+  test-full-sweep:
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+      - name: pytest
+        run: python -m pytest -v --tb=short --cov=src/keychain --cov-branch --cov-report=term-missing:skip-covered

@@ -3,62 +3,108 @@ name: release
 on:
   push:
     tags:
-      - '[0-9]+.[0-9]+.[0-9]+'
+      - "[0-9]*.[0-9]*.[0-9]*"
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    container:
-      image: debian:bookworm-slim
+  release:
+    runs-on: ubuntu-24.04
     steps:
-      - name: Prepare build dependencies
-        run: |
-          apt-get update -y
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            ca-certificates make perl jq git gawk sed gzip tar openssh-client
-          rm -rf /var/lib/apt/lists/*
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Fix git ownership for container
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Verify tag matches VERSION
+        id: version
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      - name: Verify tag/version consistency
-        id: ver
-        run: |
-          TAG_NAME="${GITHUB_REF##*/}"
-          FILE_VER=$(cat VERSION)
-          if [ "$TAG_NAME" != "$FILE_VER" ]; then
-            echo "Tag $TAG_NAME does not match VERSION file $FILE_VER" >&2
+          tag="${GITHUB_REF_NAME}"
+          version="$(cat VERSION)"
+          if [[ "${tag}" != "${version}" ]]; then
+            echo "Tag ${tag} does not match VERSION ${version}" >&2
             exit 1
           fi
-          echo "version=$TAG_NAME" >> $GITHUB_OUTPUT
-      - name: Build
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(_[A-Za-z0-9]+)?$ ]]; then
+            echo "Unsupported VERSION format: ${version}" >&2
+            exit 1
+          fi
+          prerelease=false
+          if [[ "${version}" == *"_"* ]]; then
+            prerelease=true
+          fi
+          title="${version//_/ }"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Test
+        run: python -m pytest tests -q
+
+      - name: Build release artifacts
         run: |
           make clean
-          make dist/keychain-$(cat VERSION).tar.gz
-      - name: Test space-in-home handling
+          make release-artifacts
+          ./dist/keychain-${{ steps.version.outputs.version }}.pyz version 2>&1 | tee .version-smoke.txt
+          grep -F "keychain ${{ steps.version.outputs.version }}" .version-smoke.txt
+          ./dist/keychain-${{ steps.version.outputs.version }}.pyz man --list >/dev/null
+
+      - name: Prepare release notes
         run: |
-          ver=$(cat VERSION)
-          ./scripts/test-space-home.sh "$ver"
-      - name: Extract changelog section
-        run: |
-          ver=$(cat VERSION)
-          awk -v ver="$ver" '/^## keychain '"$ver"' /{f=1;print;next} /^## keychain / && f && $0 !~ ver {exit} f' ChangeLog.md > .release-notes.md
-          if [ ! -s .release-notes.md ]; then
-            echo "Failed to extract changelog for $ver" >&2
+          version="${{ steps.version.outputs.version }}"
+          awk -v ver="${version}" '
+            $0 == "## " ver {f=1; next}
+            /^## / && f {exit}
+            f {print}
+          ' ChangeLog.md > .release-notes.md
+          if [[ ! -s .release-notes.md ]]; then
+            echo "Failed to extract ChangeLog.md notes for ${version}" >&2
             exit 1
           fi
-      - name: Upload artifacts (build only; manual publish step remains maintainer-driven)
+
+      - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-            name: keychain-${{ steps.ver.outputs.version }}-artifacts
-            path: |
-              dist/keychain-${{ steps.ver.outputs.version }}.tar.gz
-              keychain
-              keychain.1
-              .release-notes.md
-      - name: Summary
+          name: keychain-${{ steps.version.outputs.version }}
+          path: |
+            dist/keychain-${{ steps.version.outputs.version }}.pyz
+            dist/SHA256SUMS
+            .release-notes.md
+
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo 'Artifacts prepared. Use make release or release-refresh locally to publish via API if desired.' >> $GITHUB_STEP_SUMMARY
+          version="${{ steps.version.outputs.version }}"
+          if gh release view "${version}" >/dev/null 2>&1; then
+            gh release upload "${version}" \
+              "dist/keychain-${version}.pyz" \
+              dist/SHA256SUMS \
+              --clobber
+          else
+            args=(
+              --draft
+              --title "Keychain ${{ steps.version.outputs.title }}"
+              --notes-file .release-notes.md
+            )
+            if [[ "${{ steps.version.outputs.prerelease }}" == "true" ]]; then
+              args+=(--prerelease)
+            fi
+            gh release create "${version}" \
+              "dist/keychain-${version}.pyz" \
+              dist/SHA256SUMS \
+              "${args[@]}"
+          fi

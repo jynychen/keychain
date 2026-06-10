@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "build_backend"
+backend-path = ["scripts"]
+
+[project]
+name = "keychain"
+dynamic = ["version"]
+description = "Manager for ssh-agent, gpg-agent and private keys"
+readme = "README.md"
+license = { text = "GPL-3.0-only" }
+requires-python = ">=3.9"
+authors = [
+    { name = "Daniel Robbins", email = "drobbins@breezyops.com" },
+]
+keywords = ["ssh", "ssh-agent", "gpg", "gpg-agent", "keychain"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+# Zero runtime dependencies: dataclasses and importlib.metadata are both
+# in the stdlib on Python 3.9+ (the supported floor).
+dependencies = []
+
+[project.urls]
+Homepage = "https://kernel-seeds.org/projects/keychain/"
+Source = "https://github.com/danielrobbins/keychain"
+
+[project.scripts]
+keychain = "keychain.main:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["keychain", "keychain.docs", "keychain.output", "keychain.runtime"]
+
+[tool.setuptools.package-data]
+"keychain" = ["docs/_doc_texts.json"]
+
+[project.optional-dependencies]
+lint = [
+    "ruff>=0.5",
+    "mypy>=1.4,<2",
+    "bandit>=1.7",
+]
+
+# Convenience superset for local development.
+dev = [
+    "pytest>=7",
+    "pytest-cov>=5",
+    "ruff>=0.5",
+    "mypy>=1.4,<2",
+    "bandit>=1.7",
+    "pre-commit>=3",
+]
+
+[tool.setuptools.dynamic]
+version = { file = ["VERSION"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# ---------------------------------------------------------------------------
+# Static analysis: ruff + mypy + bandit
+#
+# These are *complementary*, not overlapping:
+#   ruff   -- style / imports / pyflakes (linting & autofix) + formatting
+#   mypy   -- static type checking (typing.* annotations only)
+#   bandit -- security-focused linter (subprocess shell=True, hardcoded creds, ...)
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.format]
+# ruff format is the single formatter for this project (replaces black).
+# Line-length is inherited from ``[tool.ruff] line-length`` above.
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+# Selected rule sets (see https://docs.astral.sh/ruff/rules/):
+#   F   -- pyflakes (real bugs: unused imports, undefined names)
+#   I   -- isort (import ordering / grouping)
+#   B   -- flake8-bugbear (likely-bug patterns)
+#   UP  -- pyupgrade (keep the modernized 3.9+ codebase from regressing)
+select = ["F", "I", "B", "UP"]
+ignore = [
+    "B904",  # ``raise ... from`` inside except: noisy in this codebase.
+    "B008",  # default arg call: ``dataclasses.field(default_factory=...)`` is fine.
+    "UP032", # ``.format()`` -> f-string: a few multi-arg cases stay readable as-is.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]  # ``assert`` is the entire point of a test.
+
+[tool.mypy]
+python_version = "3.9"
+files = ["src/keychain"]
+ignore_missing_imports = true
+no_implicit_optional = true
+
+[tool.bandit]
+# Bandit's defaults are reasonable. We only need to tell it where to look and
+# silence a couple of false positives that are part of normal subprocess use.
+exclude_dirs = ["tests", "build", "dist", ".venv"]
+skips = [
+    # ``subprocess`` import & calls -- using subprocess is the whole point.
+    "B404",
+    "B603",
+    "B607",
+    # False positives on CLI/doc literals like "keychain" and "--".
+    "B105",
+]

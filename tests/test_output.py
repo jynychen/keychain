@@ -1,0 +1,202 @@
+# SPDX-License-Identifier: GPL-3.0-only
+"""Smoke tests for the role-based output API in ``keychain.output``.
+
+The migration plan in ``docs/output-api.md`` lists a handful of acceptance
+criteria for the new surface. This file covers:
+
+* every theme resolves every role to a string (round-trip)
+* ``Span`` interpolation respects the active theme
+* ``Output.silent()`` swallows every emitter
+* role helpers return :class:`Span` instances tagged with the right role
+* legacy palette / glyph back-compat still works through ``out.c('CYANN')``
+"""
+
+import os
+
+import pytest
+
+from keychain.output.core import (
+    DEFAULT_THEME,
+    ROLES,
+    THEMES,
+    Output,
+    Span,
+)
+
+# ---------------------------------------------------------------------------
+# Theme integrity (acceptance criterion: every role resolves on every theme)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("theme_name", sorted(THEMES))
+def test_every_role_resolves_on_every_theme(theme_name):
+    theme = THEMES[theme_name]
+    for role in ROLES:
+        assert role in theme.roles
+        assert isinstance(theme.roles[role], str)
+
+
+def test_default_theme_is_known():
+    assert DEFAULT_THEME in THEMES
+
+
+def test_theme_render_passes_through_plain():
+    # plain has no prefix, so render returns the text verbatim.
+    for theme in THEMES.values():
+        assert theme.render("plain", "hello") == "hello"
+
+
+def test_theme_render_wraps_with_reset():
+    theme = THEMES["modern"]
+    rendered = theme.render("identifier", "x")
+    # Wrapped sequence ends in the canonical reset.
+    assert rendered.endswith(theme.reset)
+    assert "x" in rendered
+
+
+# ---------------------------------------------------------------------------
+# Span interpolation against the active theme
+# ---------------------------------------------------------------------------
+
+
+def test_span_str_renders_against_active_theme(monkeypatch):
+    monkeypatch.setattr(os, "isatty", lambda fd: True)
+    out = Output.build(quiet=False, debug=False, eval_mode=False, color=True, theme="modern")
+    s = out.id("hostname")
+    rendered = str(s)
+    assert "hostname" in rendered
+    assert "\x1b[" in rendered  # an ANSI escape was emitted
+    # Sanity: same Span re-rendered after switching to no-color drops escapes.
+    Output.build(quiet=False, debug=False, eval_mode=False, color=False)
+    plain = str(s)
+    assert plain == "hostname"
+
+
+def test_span_role_default_is_plain():
+    assert Span("x").role == "plain"
+
+
+# ---------------------------------------------------------------------------
+# Role helpers
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "method,role",
+    [
+        ("id", "identifier"),
+        ("path", "path"),
+        ("value", "value"),
+        ("flag", "flag"),
+        ("warn_text", "warn"),
+        ("err_text", "err"),
+        ("dim", "dim"),
+        ("head", "heading"),
+        ("note_text", "note"),
+        ("kbd", "kbd"),
+    ],
+)
+def test_role_helper_returns_span_with_correct_role(method, role):
+    out = Output.build(quiet=True, debug=False, eval_mode=False, color=False)
+    span = getattr(out, method)("payload")
+    assert isinstance(span, Span)
+    assert span.role == role
+    assert span.text == "payload"
+
+
+def test_style_returns_concatenated_role_prefixes(monkeypatch):
+    monkeypatch.setattr(os, "isatty", lambda fd: True)
+    out = Output.build(quiet=False, debug=False, eval_mode=False, color=True, theme="modern")
+    combined = out.style("heading", "dim")
+    # Both role prefixes appear in the concatenated style string.
+    assert combined.startswith("\x1b[")
+    assert "\x1b[" in combined[1:]
+
+
+def test_style_with_no_color_is_empty():
+    out = Output.build(quiet=False, debug=False, eval_mode=False, color=False)
+    assert out.style("heading", "dim") == ""
+
+
+def test_note_glyph_uses_green_accent(monkeypatch):
+    monkeypatch.setattr(os, "isatty", lambda fd: True)
+    out = Output.build(quiet=False, debug=False, eval_mode=False, color=True, theme="modern")
+    glyph = out.glyph("note")
+    assert glyph.startswith(out.colors["GREEN"])
+    assert out.glyphs["note"] in glyph
+
+
+# ---------------------------------------------------------------------------
+# Output.silent() (replaces the old _NullOut probe sink)
+# ---------------------------------------------------------------------------
+
+
+class TestOutputSilent:
+    def test_silent_swallows_every_emitter(self, capsys):
+        out = Output.silent()
+        out.info("info")
+        out.warn("warn")
+        out.note("note")
+        out.error("error")
+        out.debug("debug")
+        out.line("line")
+        out.heading("heading")
+        out.banner("banner")
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        assert captured.out == ""
+
+    def test_silent_role_helpers_still_return_spans(self):
+        # Role helpers don't emit; they just construct Spans for f-string
+        # interpolation. They must keep working under silent() so probe
+        # callers can still build error messages they choose to suppress.
+        out = Output.silent()
+        assert isinstance(out.id("x"), Span)
+        assert out.id("x").role == "identifier"
+
+
+# ---------------------------------------------------------------------------
+# Emitters: write() bypasses suppression, line() respects quiet
+# ---------------------------------------------------------------------------
+
+
+def test_write_bypasses_quiet_and_json(capsys):
+    # write() is for protocol output (shell-eval / env / JSON); it must
+    # never be suppressed by quiet or json.
+    out = Output.build(quiet=True, debug=False, eval_mode=False, color=False, json=True)
+    out.write("MACHINE-READABLE\n")
+    captured = capsys.readouterr()
+    assert "MACHINE-READABLE" in captured.out
+
+
+def test_line_suppressed_under_quiet(capsys):
+    out = Output.build(quiet=True, debug=False, eval_mode=False, color=False)
+    out.line("nope")
+    assert capsys.readouterr().err == ""
+
+
+def test_info_suppressed_under_json(capsys):
+    out = Output.build(quiet=False, debug=False, eval_mode=False, color=False, json=True)
+    out.info("nope")
+    assert capsys.readouterr().err == ""
+
+
+def test_warn_suppressed_under_json(capsys):
+    # New policy: warn/error are human-facing under --json too. The JSON
+    # consumer sees only the JSON document on stdout.
+    out = Output.build(quiet=False, debug=False, eval_mode=False, color=False, json=True)
+    out.warn("noisy")
+    assert capsys.readouterr().err == ""
+
+
+# ---------------------------------------------------------------------------
+# Back-compat: out.c() still works for the deprecation window (step 6)
+# ---------------------------------------------------------------------------
+
+
+def test_legacy_palette_accessor_still_works(monkeypatch):
+    monkeypatch.setattr(os, "isatty", lambda fd: True)
+    out = Output.build(quiet=False, debug=False, eval_mode=False, color=True, theme="legacy")
+    # Legacy palette name 'CYANN' is still resolvable via the deprecated
+    # out.c() shim so out-of-tree callers keep working.
+    assert out.c("CYANN") != ""

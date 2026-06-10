@@ -1,100 +1,43 @@
-# For BSD, AIX, Solaris:
-V:sh = cat VERSION
-D:sh = date +'%d %b %Y'
-Y:sh = date +'%Y'
+# keychain — Makefile for building keychain.pyz (single-file Python executable)
+#
+# Prerequisites: Python 3.9+ on the build host. No other dependencies needed.
+#
+# Targets:
+#   make keychain.pyz   — build the zipapp
+#   make clean          — remove build artifacts
 
-# for GNU Make:
-V ?= $(shell cat VERSION)
-D ?= $(shell date +'%d %b %Y')
-Y ?= $(shell date +'%Y')
+V := $(shell cat VERSION)
 
-PREFIX ?= /usr/local
-COMPLETIONSDIR ?= $(PREFIX)/share/bash-completion/completions
+.PHONY : all clean keychain.pyz release-artifacts
 
-all: keychain.1 keychain keychain.spec
+all : keychain.pyz
 
-.PHONY : tmpclean
-tmpclean:
-	rm -rf dist keychain.1.orig keychain.txt
+src/keychain/docs/_doc_texts.json : man/embedded-docs.txt scripts/build_doc_texts.py
+	python3 scripts/build_doc_texts.py
 
-.PHONY : clean
-clean: tmpclean
-	rm -rf keychain.1 keychain keychain.spec
+keychain.pyz : Makefile $(shell find src/keychain -name '*.py') src/keychain/docs/_doc_texts.json man/embedded-docs.txt scripts/build_doc_texts.py VERSION scripts/pyz_bootstrap.py
+	rm -rf build/pyz-stage
+	mkdir -p build/pyz-stage
+	cp -r src/keychain build/pyz-stage/
+	cp VERSION build/pyz-stage/keychain/VERSION
+	find build/pyz-stage -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
+	python3 -m compileall -q build/pyz-stage
+	cp scripts/pyz_bootstrap.py build/pyz-stage/__main__.py
+	python3 -m zipapp build/pyz-stage -o keychain.pyz -p '/usr/bin/env python3' -c
+	chmod +x keychain.pyz
 
-keychain.spec: keychain.spec.in keychain.sh VERSION
-	sed 's/KEYCHAIN_VERSION/$V/' keychain.spec.in > keychain.spec
-
-keychain.1: keychain.pod keychain.sh VERSION
-	pod2man --name=keychain --release=$V \
-		--center='https://github.com/danielrobbins/keychain' \
-		keychain.pod keychain.1
-	sed -i.orig -e "s/^'br /.br /" keychain.1
-
-keychain.1.gz: keychain.1
-	gzip -9 keychain.1
-
-GENKEYCHAINPL = open P, "keychain.txt" or die "cannot open keychain.txt"; \
-			while (<P>) { \
-				$$printing = 0 if /^\w/; \
-				$$printing = 1 if /^(SYNOPSIS|OPTIONS)/; \
-				$$printing || next; \
-				s/\$$/\\\$$/g; \
-				s/\`/\\\`/g; \
-				s/\\$$/\\\\/g; \
-				s/\*(\w+)\*/\$${CYAN}$$1\$${OFF}/g; \
-				s/(^|\s)(-+[-\w]+)/$$1\$${GREEN}$$2\$${OFF}/g; \
-				$$pod .= $$_; \
-			}; \
-		open B, "keychain.sh" or die "cannot open keychain.sh"; \
-			$$/ = undef; \
-			$$_ = <B>; \
-			s/INSERT_POD_OUTPUT_HERE[\r\n]/$$pod/ || die; \
-			s/\#\#VERSION\#\#/$V/g || die; \
-		print
-
-keychain: keychain.sh keychain.txt VERSION MAINTAINERS.txt
-	perl -e '$(GENKEYCHAINPL)' | sed -e 's/##CUR_YEAR##/$(Y)/g' >keychain || rm -f keychain
-	chmod +x keychain
-
-keychain.txt: keychain.pod
-	pod2text keychain.pod keychain.txt
-
-dist/keychain-$V.tar.gz: keychain keychain.1 keychain.spec
+dist :
 	mkdir -p dist
-	rm -rf dist/keychain-$V
-	git archive --format=tar --prefix=keychain-$V/ HEAD | tar -xf - -C dist/
-	cp keychain keychain.1 keychain.spec dist/keychain-$V/
-	tar -C dist -czf dist/keychain-$V.tar.gz keychain-$V
-	rm -rf dist/keychain-$V
-	ls -l dist/keychain-$V.tar.gz
 
-# --- Release Automation Helpers ---
-.PHONY: release release-refresh
+dist/keychain-$(V).pyz : keychain.pyz | dist
+	cp keychain.pyz dist/keychain-$(V).pyz
 
-RELEASE_ASSETS=dist/keychain-$V.tar.gz keychain keychain.1
+dist/SHA256SUMS : dist/keychain-$(V).pyz
+	cd dist && sha256sum keychain-$(V).pyz > SHA256SUMS
 
-# "release" will orchestrate a tagged release with CI artifact validation & confirmation.
-release: clean $(RELEASE_ASSETS)
-	@echo "Orchestrating release $(V)"; \
-	if [ -z "$$GITHUB_TOKEN" ]; then \
-		echo "GITHUB_TOKEN not set; export a repo-scoped token to proceed." >&2; exit 1; \
-	fi; \
-	./scripts/release-orchestrate.sh create $(V)
+release-artifacts : dist/keychain-$(V).pyz dist/SHA256SUMS
+	cd dist && sha256sum -c SHA256SUMS
 
-# "release-refresh" updates assets of an existing GitHub release (e.g. fixups) with CI validation.
-release-refresh: clean $(RELEASE_ASSETS)
-	@echo "Orchestrating release-refresh $(V)"; \
-	if [ -z "$$GITHUB_TOKEN" ]; then \
-		echo "GITHUB_TOKEN not set; export a repo-scoped token to proceed." >&2; exit 1; \
-	fi; \
-	./scripts/release-orchestrate.sh refresh $(V)
-
-# --- Bash Completion ---
-.PHONY: install-completions uninstall-completions
-
-install-completions:
-	install -d -m 0755 $(DESTDIR)$(COMPLETIONSDIR)
-	install -m 0644 completions/keychain.bash $(DESTDIR)$(COMPLETIONSDIR)/keychain
-
-uninstall-completions:
-	rm -f $(DESTDIR)$(COMPLETIONSDIR)/keychain
+clean :
+	rm -rf dist build keychain.pyz src/keychain/docs/_doc_texts.json
+	find src -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
